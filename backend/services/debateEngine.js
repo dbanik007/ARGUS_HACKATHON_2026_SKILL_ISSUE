@@ -211,7 +211,7 @@ Respond in 3-5 sentences, then the verdict tag.`
 
 // ─── Smart fallback responses (context-aware, honours slider configs) ────────
 
-const buildFallback = (agentName, session, roster, employees, debateHistory, agentConfigs, searchResults = []) => {
+const buildFallback = (agentName, session, roster, employees, debateHistory, agentConfigs, searchResults = [], extraNote = '') => {
   const agentConfig = (agentConfigs || {})[agentName] || DEFAULT_CONFIGS[agentName] || {};
   const budget = Number(session.budget);
   const months = parseInt(session.timeline_months);
@@ -261,6 +261,8 @@ const buildFallback = (agentName, session, roster, employees, debateHistory, age
     return negativeKeywords.some(kw => text.includes(kw));
   });
   const hasNegativeReputation = negativeResults.length > 0;
+
+  const isCriticalHalt = (extraNote && extraNote.includes('CRITICAL HALT'));
 
   // Rank available developers by experience, domain match, leave risk, and workload
   const ranked = availableDevs
@@ -363,6 +365,10 @@ const buildFallback = (agentName, session, roster, employees, debateHistory, age
     }
   };
 
+  if (agentName === 'Board of Directors' && isCriticalHalt) {
+    return `CRITICAL COMPLIANCE HALT: The Board of Directors has issued an immediate halt on the "${project}" tender from ${client} due to a priority compliance risk flagged during the session (e.g. Legal objections, regulatory barriers, or client reputational risks). No further department assessments will be conducted. The Board issues its final binding ruling.\n[VERDICT: NO-GO]`;
+  }
+
   const agentResponses = map[agentName];
   if (!agentResponses) return `Assessment of "${project}" complete. My evaluation has been submitted to the boardroom record.`;
   return agentResponses[round] || agentResponses[1];
@@ -372,7 +378,7 @@ const buildFallback = (agentName, session, roster, employees, debateHistory, age
 
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-const callGemini = async (agentName, contextPrompt, session, roster, employees, debateHistory, agentConfigs, searchResults = []) => {
+const callGemini = async (agentName, contextPrompt, session, roster, employees, debateHistory, agentConfigs, searchResults = [], extraNote = '') => {
   const apiKey = process.env.GEMINI_API_KEY;
   const agentConfig = (agentConfigs || {})[agentName] || DEFAULT_CONFIGS[agentName] || {};
 
@@ -452,7 +458,7 @@ const callGemini = async (agentName, contextPrompt, session, roster, employees, 
     }
   }
 
-  return { text: buildFallback(agentName, session, roster, employees, debateHistory, agentConfigs, searchResults), source: 'fallback' };
+  return { text: buildFallback(agentName, session, roster, employees, debateHistory, agentConfigs, searchResults, extraNote), source: 'fallback' };
 };
 
 // ─── Context prompt builder ──────────────────────────────────────────────────
@@ -603,7 +609,7 @@ const runDebateAsync = async (session, roster, emitter, pool, missionBriefing = 
     if (isCancelled()) throw new Error('CANCELLED');
 
     const contextPrompt = buildContext(agentName, session, roster, employees, debateHistory, extraNote, missionBriefing, searchResults);
-    const { text: messageText } = await callGemini(agentName, contextPrompt, session, roster, employees, debateHistory, agentConfigs, searchResults);
+    const { text: messageText } = await callGemini(agentName, contextPrompt, session, roster, employees, debateHistory, agentConfigs, searchResults, extraNote);
 
     const msg = { sender: agentName, message_text: messageText, negotiation_round: round };
     debateHistory.push(msg);
@@ -641,94 +647,104 @@ const runDebateAsync = async (session, roster, emitter, pool, missionBriefing = 
     await new Promise(resolve => setTimeout(resolve, 500));
     emit('message', initialUserMsg);
 
-    // ── Round 1: Initial presentations ──────────────────────────────────────
-    if (roster.includes('Account Executive')) {
-      await runAgent('Account Executive', 1);
-      agentFlags['Account Executive'] = 'approved';
+    // ── Round 1: Initial presentations (Priority Sorted) ────────────────────
+    const proposer = roster.includes('Account Executive') ? 'Account Executive' : (roster.includes('Financial') ? 'Financial' : null);
+
+    const priorityOrder = [
+      'Legal',
+      'Risk Analyst',
+      'Financial',
+      'Resource',
+      'Technical Architect',
+      'Operations Manager'
+    ];
+
+    const evaluators = priorityOrder.filter(role => roster.includes(role) && role !== proposer);
+
+    if (proposer) {
+      await runAgent(proposer, 1);
+      agentFlags[proposer] = 'approved';
     }
 
     let resourceFlagged = false;
-    if (roster.includes('Resource')) {
-      const resourceMsg = await runAgent('Resource', 1);
-      const rL = resourceMsg.toLowerCase();
-      resourceFlagged = rL.includes('staffing gap') || rL.includes('none available') ||
-                        rL.includes('no available') || rL.includes('shortfall') ||
-                        rL.includes('cannot staff') || rL.includes('no developers') ||
-                        rL.includes('0 developers') || rL.includes('not enough') ||
-                        rL.includes('insufficient') || rL.includes('resolve before') ||
-                        rL.includes('leave gap') || rL.includes('leave conflict');
-      agentFlags['Resource'] = resourceFlagged ? 'flagged' : 'approved';
-    }
-
     let techFlagged = false;
-    if (roster.includes('Technical Architect')) {
-      const techMsg = await runAgent('Technical Architect', 1);
-      const lower = techMsg.toLowerCase();
-      techFlagged = lower.includes('not feasible') || lower.includes('unrealistic') ||
-                    lower.includes('blocker') || lower.includes('concern') ||
-                    lower.includes('insufficient') || lower.includes('too short') ||
-                    lower.includes('aggressive') || lower.includes('cannot') ||
-                    lower.includes('flagging') || lower.includes('high delivery risk') ||
-                    lower.includes('reject') || lower.includes('no-go') || lower.includes('decline') ||
-                    lower.includes('continuity risk') || lower.includes('experience gap');
-      agentFlags['Technical Architect'] = techFlagged ? 'conditional' : 'approved';
-    }
-
     let riskFlagged = false;
-    if (roster.includes('Risk Analyst')) {
-      const riskMsg = await runAgent('Risk Analyst', 1);
-      const lower = riskMsg.toLowerCase();
-      riskFlagged = lower.includes('high') || lower.includes('critical') ||
-                    lower.includes('red flag') || lower.includes('strongly recommend') ||
-                    lower.includes('renegotiat') || lower.includes('unacceptable') ||
-                    lower.includes('reject') || lower.includes('no-go') || lower.includes('decline');
-      agentFlags['Risk Analyst'] = riskFlagged ? 'conditional' : 'approved';
-    }
-
     let opsConcern = false;
-    if (roster.includes('Operations Manager')) {
-      const opsMsg = await runAgent('Operations Manager', 1);
-      const lower = opsMsg.toLowerCase();
-      opsConcern = lower.includes('cannot execute') || lower.includes('execution gap') ||
-                   lower.includes('not executable') || lower.includes('operationally unsound') ||
-                   lower.includes('reject') || lower.includes('no-go') || lower.includes('decline');
-      agentFlags['Operations Manager'] = opsConcern ? 'conditional' : 'approved';
-    }
-
     let legalFlagged = false;
-    if (roster.includes('Legal')) {
-      const legalMsg = await runAgent('Legal', 1);
-      const lower = legalMsg.toLowerCase();
-      legalFlagged = lower.includes('violation') || lower.includes('non-compliant') ||
-                     lower.includes('cannot approve') || lower.includes('blocking') ||
-                     lower.includes('flagging') || lower.includes('prohibit') ||
-                     lower.includes('must') || lower.includes('warning') ||
-                     lower.includes('no certified') || lower.includes('baa') ||
-                     lower.includes('reject') || lower.includes('no-go') || lower.includes('decline') || lower.includes('do not accept') ||
-                     lower.includes('reputation') || lower.includes('lawsuit') ||
-                     lower.includes('legal battle') || lower.includes('scam') ||
-                     lower.includes('court') || lower.includes('litigation') ||
-                     lower.includes('due diligence');
-      agentFlags['Legal'] = legalFlagged ? 'conditional' : 'approved';
-    }
-
     let financeFlagged = false;
-    if (roster.includes('Financial')) {
-      const financeMsg = await runAgent('Financial', 1);
-      const lower = financeMsg.toLowerCase();
-      financeFlagged = lower.includes('negative') || lower.includes('deficit') ||
-                       lower.includes('too low') || lower.includes('insufficient') ||
-                       lower.includes('unviable') || lower.includes('untenable') ||
-                       lower.includes('loss') || lower.includes('exceeds') ||
-                       lower.includes('shortfall') || lower.includes('blocker') ||
-                       lower.includes('cannot cover') || lower.includes('renegotiat') ||
-                       lower.includes('reject') || lower.includes('no-go') || lower.includes('decline') || lower.includes('do not accept');
-      agentFlags['Financial'] = financeFlagged ? 'flagged' : 'approved';
+
+    let criticalBlock = null;
+
+    for (const agent of evaluators) {
+      const msg = await runAgent(agent, 1);
+      const lower = msg.toLowerCase();
+
+      if (agent === 'Legal') {
+        legalFlagged = lower.includes('violation') || lower.includes('non-compliant') ||
+                       lower.includes('cannot approve') || lower.includes('blocking') ||
+                       lower.includes('flagging') || lower.includes('prohibit') ||
+                       lower.includes('must') || lower.includes('warning') ||
+                       lower.includes('no certified') || lower.includes('baa') ||
+                       lower.includes('reject') || lower.includes('no-go') || lower.includes('decline') || lower.includes('do not accept') ||
+                       lower.includes('reputation') || lower.includes('lawsuit') ||
+                       lower.includes('legal battle') || lower.includes('scam') ||
+                       lower.includes('court') || lower.includes('litigation') ||
+                       lower.includes('due diligence');
+        if (legalFlagged) {
+          agentFlags['Legal'] = 'flagged';
+          criticalBlock = { agent: 'Legal', reason: 'Critical compliance/regulatory barrier flagged by Legal department.' };
+          break; // Stop further execution!
+        } else {
+          agentFlags['Legal'] = 'approved';
+        }
+      }
+      else if (agent === 'Resource') {
+        resourceFlagged = lower.includes('staffing gap') || lower.includes('none available') ||
+                          lower.includes('no available') || lower.includes('shortfall') ||
+                          lower.includes('cannot staff') || lower.includes('no developers') ||
+                          lower.includes('0 developers') || lower.includes('not enough') ||
+                          lower.includes('insufficient') || lower.includes('resolve before') ||
+                          lower.includes('leave gap') || lower.includes('leave conflict');
+        agentFlags['Resource'] = resourceFlagged ? 'flagged' : 'approved';
+      }
+      else if (agent === 'Technical Architect') {
+        techFlagged = lower.includes('not feasible') || lower.includes('unrealistic') ||
+                      lower.includes('blocker') || lower.includes('concern') ||
+                      lower.includes('insufficient') || lower.includes('too short') ||
+                      lower.includes('aggressive') || lower.includes('cannot') ||
+                      lower.includes('flagging') || lower.includes('high delivery risk') ||
+                      lower.includes('reject') || lower.includes('no-go') || lower.includes('decline') ||
+                      lower.includes('continuity risk') || lower.includes('experience gap');
+        agentFlags['Technical Architect'] = techFlagged ? 'conditional' : 'approved';
+      }
+      else if (agent === 'Risk Analyst') {
+        riskFlagged = lower.includes('high') || lower.includes('critical') ||
+                      lower.includes('red flag') || lower.includes('strongly recommend') ||
+                      lower.includes('renegotiat') || lower.includes('unacceptable') ||
+                      lower.includes('reject') || lower.includes('no-go') || lower.includes('decline');
+        agentFlags['Risk Analyst'] = riskFlagged ? 'conditional' : 'approved';
+      }
+      else if (agent === 'Operations Manager') {
+        opsConcern = lower.includes('cannot execute') || lower.includes('execution gap') ||
+                     lower.includes('not executable') || lower.includes('operationally unsound') ||
+                     lower.includes('reject') || lower.includes('no-go') || lower.includes('decline');
+        agentFlags['Operations Manager'] = opsConcern ? 'conditional' : 'approved';
+      }
+      else if (agent === 'Financial') {
+        financeFlagged = lower.includes('negative') || lower.includes('deficit') ||
+                         lower.includes('too low') || lower.includes('insufficient') ||
+                         lower.includes('unviable') || lower.includes('untenable') ||
+                         lower.includes('loss') || lower.includes('exceeds') ||
+                         lower.includes('shortfall') || lower.includes('blocker') ||
+                         lower.includes('cannot cover') || lower.includes('renegotiat') ||
+                         lower.includes('reject') || lower.includes('no-go') || lower.includes('decline') || lower.includes('do not accept');
+        agentFlags['Financial'] = financeFlagged ? 'flagged' : 'approved';
+      }
     }
 
     // ── Round 2: Renegotiation ───────────────────────────────────────────────
     const anyFlagged = financeFlagged || legalFlagged || techFlagged || riskFlagged || resourceFlagged;
-    if (anyFlagged) {
+    if (anyFlagged && !criticalBlock) {
       const issues = [];
       if (resourceFlagged) issues.push('Resource Manager flagged insufficient available staff or leave conflicts');
       if (financeFlagged)  issues.push('budget flagged as financially unviable');
@@ -766,13 +782,21 @@ const runDebateAsync = async (session, roster, emitter, pool, missionBriefing = 
     }
 
     // ── Final: Board of Directors verdict ───────────────────────────────────
-    const boardRound = anyFlagged ? 3 : 2;
-    const boardMsg = await runAgent('Board of Directors', boardRound,
-      'All agents have presented. Deliver the final binding verdict.');
-
+    let boardMsg;
     let verdict = 'GO';
-    if (boardMsg.includes('[VERDICT: NO-GO]') || /\bno.go\b/i.test(boardMsg)) verdict = 'NO-GO';
-    else if (boardMsg.includes('[VERDICT: NEGOTIATE]') || /\bnegotiate\b/i.test(boardMsg)) verdict = 'NEGOTIATE';
+
+    if (criticalBlock) {
+      boardMsg = await runAgent('Board of Directors', 2,
+        `CRITICAL HALT: The debate has been halted because a priority compliance barrier was encountered. ${criticalBlock.reason} Deliver the final binding NO-GO verdict and explain the compliance blocker to the team.`);
+      verdict = 'NO-GO';
+    } else {
+      const boardRound = anyFlagged ? 3 : 2;
+      boardMsg = await runAgent('Board of Directors', boardRound,
+        'All agents have presented. Deliver the final binding verdict.');
+
+      if (boardMsg.includes('[VERDICT: NO-GO]') || /\bno.go\b/i.test(boardMsg)) verdict = 'NO-GO';
+      else if (boardMsg.includes('[VERDICT: NEGOTIATE]') || /\bnegotiate\b/i.test(boardMsg)) verdict = 'NEGOTIATE';
+    }
 
     if (verdict === 'GO') {
       Object.keys(agentFlags).forEach(k => {
