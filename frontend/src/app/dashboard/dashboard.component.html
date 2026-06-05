@@ -649,10 +649,11 @@
               <td class="p-4 text-right font-semibold text-primary">${{ formatMoney(ses.final_budget) }}</td>
               
               <td class="p-4 text-center">
-                <span 
-                  [class]="'px-3 py-1 rounded-full text-[10px] font-bold tracking-wider uppercase border ' + 
-                           (ses.final_verdict === 'GO' ? 'bg-tertiary/10 border-tertiary/20 text-tertiary-fixed' : 
-                            ses.final_verdict === 'NO-GO' ? 'bg-error/10 border-error/20 text-error' : 
+                <span
+                  [class]="'px-3 py-1 rounded-full text-[10px] font-bold tracking-wider uppercase border ' +
+                           (ses.final_verdict === 'GO' ? 'bg-tertiary/10 border-tertiary/20 text-tertiary-fixed' :
+                            ses.final_verdict === 'NO-GO' ? 'bg-error/10 border-error/20 text-error' :
+                            ses.final_verdict === 'CANCELLED' ? 'bg-white/5 border-white/10 text-on-surface-variant/60' :
                             'bg-amber-500/10 border-amber-500/20 text-amber-400')">
                   {{ ses.final_verdict }}
                 </span>

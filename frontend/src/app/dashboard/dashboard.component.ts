@@ -484,9 +484,35 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
   }
 
   restorePendingSession(session: EvaluationSession): void {
-    // Skip sessions the user explicitly cancelled this browser session
+    // If the user explicitly cancelled this session, load it as static data instead of reconnecting
     const cancelled: number[] = JSON.parse(sessionStorage.getItem('cancelledSessions') || '[]');
-    if (cancelled.includes(session.id)) return;
+    if (cancelled.includes(session.id)) {
+      // Treat as a completed session — switch tab and load messages without SSE
+      const token = localStorage.getItem('token');
+      if (!token) return;
+      this.activeTab = 'console';
+      this.evaluating = false;
+      this.verdictCollapsed = true;
+      this.agentFlags = {};
+      this.debateMessages = [];
+      sessionStorage.setItem('lastSessionId', String(session.id));
+      const headers = new HttpHeaders().set('Authorization', `Bearer ${token}`);
+      this.http.get<any>(`${this.backendUrl}/api/evaluation/session/${session.id}`, { headers })
+        .subscribe({
+          next: (data: any) => {
+            this.activeSession = data.session;
+            this.debateMessages = data.messages;
+            this.tenderName = data.session.tender_name;
+            this.clientName = data.session.client_name;
+            this.budget = Number(data.session.budget);
+            this.timelineMonths = Number(data.session.timeline_months);
+            this.industry = data.session.industry;
+            this.errors = {};
+          },
+          error: () => {}
+        });
+      return;
+    }
 
     const token = localStorage.getItem('token');
     if (!token) return;

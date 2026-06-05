@@ -208,10 +208,19 @@ router.get('/stream', async (req, res) => {
 });
 
 // 3. Cancel a running evaluation
-router.post('/cancel/:id', authenticateJWT, (req, res) => {
+router.post('/cancel/:id', authenticateJWT, async (req, res) => {
   const sessionId = parseInt(req.params.id);
   cancelledSessions.add(sessionId);
   console.log(`[Debate] Session ${sessionId} cancelled by user.`);
+  // Mark as CANCELLED in DB so Tender Library shows the correct state
+  try {
+    await pool.query(
+      `UPDATE evaluation_sessions SET final_verdict = 'CANCELLED' WHERE id = $1 AND user_id = $2`,
+      [sessionId, req.user.id]
+    );
+  } catch (err) {
+    console.warn(`[Cancel] Failed to update DB verdict for session ${sessionId}:`, err.message);
+  }
   res.json({ success: true });
 });
 
