@@ -20,7 +20,7 @@ echo "[1/3] Pulling latest images..."
 docker compose pull --quiet 2>/dev/null || true
 
 echo "[2/3] Building and starting all services..."
-docker compose up -d
+docker compose up -d --build
 
 echo "[3/3] Waiting for services to become healthy..."
 for i in $(seq 1 30); do

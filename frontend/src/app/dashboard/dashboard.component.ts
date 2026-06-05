@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient, HttpClientModule, HttpHeaders } from '@angular/common/http';
 import { Router } from '@angular/router';
+import { ImportModalComponent } from '../import-modal/import-modal.component';
 
 interface DebateMessage {
   sender: string;
@@ -25,7 +26,7 @@ interface EvaluationSession {
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [CommonModule, FormsModule, HttpClientModule],
+  imports: [CommonModule, FormsModule, HttpClientModule, ImportModalComponent],
   templateUrl: './dashboard.component.html',
   styleUrls: []
 })
@@ -59,6 +60,9 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
   
   // Historical sessions
   historyList: EvaluationSession[] = [];
+
+  // Import modal
+  showImportModal = false;
   
   backendUrl = 'http://localhost:3000';
   private eventSource: EventSource | null = null;

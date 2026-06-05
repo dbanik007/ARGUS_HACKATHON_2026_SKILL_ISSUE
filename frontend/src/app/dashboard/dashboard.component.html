@@ -3,6 +3,13 @@
   <div class="flex items-center gap-sm">
     <span class="material-symbols-outlined text-3xl text-primary neon-text-primary">forum</span>
     <span class="font-display-lg text-headline-md font-bold text-primary tracking-tight neon-text-primary">Boardroom</span>
+    <button
+      (click)="showImportModal = true"
+      class="ml-sm flex items-center gap-xs py-1.5 px-sm rounded-lg bg-white/5 border border-white/10 text-on-surface-variant hover:text-primary hover:border-primary/30 hover:bg-primary/5 transition-all text-[12px] font-semibold"
+      title="Import employees from CSV or XLSX">
+      <span class="material-symbols-outlined text-[17px]">upload_file</span>
+      Import Employees
+    </button>
   </div>
   
   <!-- Navigation Tabs -->
@@ -32,6 +39,9 @@
     </button>
   </div>
 </nav>
+
+<!-- Employee Import Modal -->
+<app-import-modal [isOpen]="showImportModal" (closed)="showImportModal = false"></app-import-modal>
 
 <!-- Main Workspace Panel -->
 <main class="flex-1 mt-xl h-[calc(100vh-80px)] flex bg-dashboard-workspace">

@@ -1,0 +1,145 @@
+<div *ngIf="isOpen" class="fixed inset-0 z-[200] flex items-center justify-center p-4">
+  <!-- Backdrop -->
+  <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" (click)="close()"></div>
+
+  <!-- Panel -->
+  <div class="relative z-10 w-full max-w-2xl glass-panel rounded-2xl border border-white/10 shadow-2xl flex flex-col gap-0 overflow-hidden">
+
+    <!-- Header -->
+    <div class="flex items-center justify-between px-lg py-md border-b border-white/10 bg-surface-container/40">
+      <div class="flex items-center gap-sm">
+        <span class="material-symbols-outlined text-primary">upload_file</span>
+        <h2 class="font-headline-md text-headline-md font-bold text-on-surface">Import Employees</h2>
+      </div>
+      <button (click)="close()" class="p-1 rounded-md text-on-surface-variant hover:text-error transition-colors" title="Close">
+        <span class="material-symbols-outlined text-[22px]">close</span>
+      </button>
+    </div>
+
+    <div class="flex flex-col gap-md p-lg">
+
+      <!-- Template download strip -->
+      <div class="flex items-center justify-between bg-white/[0.03] rounded-xl px-md py-sm border border-white/5">
+        <div class="flex items-center gap-sm">
+          <span class="material-symbols-outlined text-secondary text-[22px]">table_chart</span>
+          <div>
+            <p class="font-label-md text-label-md text-on-surface leading-tight">Download Template</p>
+            <p class="text-[11px] text-on-surface-variant">employee_import_template.xlsx — fill in and upload below</p>
+          </div>
+        </div>
+        <button
+          (click)="downloadTemplate()"
+          class="flex items-center gap-xs py-1.5 px-sm rounded-lg bg-secondary/10 border border-secondary/20 text-secondary text-[12px] font-semibold hover:bg-secondary/20 transition-all">
+          <span class="material-symbols-outlined text-[16px]">download</span>
+          Download
+        </button>
+      </div>
+
+      <!-- Drop zone -->
+      <div
+        class="relative border-2 border-dashed rounded-xl py-xl px-lg flex flex-col items-center gap-sm transition-all duration-200 cursor-pointer select-none"
+        [class.border-primary]="isDragOver"
+        [class.bg-primary/5]="isDragOver"
+        [class.border-white/15]="!isDragOver"
+        [class.hover:border-white/30]="!isDragOver"
+        (dragover)="onDragOver($event)"
+        (dragleave)="onDragLeave($event)"
+        (drop)="onDrop($event)"
+        (click)="triggerFilePicker()">
+
+        <span
+          class="material-symbols-outlined text-5xl transition-colors"
+          [class.text-primary]="isDragOver"
+          [class.text-on-surface-variant]="!isDragOver && !selectedFile"
+          [class.text-secondary]="!isDragOver && !!selectedFile">
+          {{ selectedFile ? 'description' : 'cloud_upload' }}
+        </span>
+
+        <ng-container *ngIf="!selectedFile">
+          <p class="font-label-md text-label-md text-on-surface">Drag &amp; drop your file here</p>
+          <p class="text-caption text-on-surface-variant">or click to browse &mdash; <span class="font-semibold">.csv</span> and <span class="font-semibold">.xlsx</span> supported &nbsp;&bull;&nbsp; max 5 MB</p>
+        </ng-container>
+
+        <ng-container *ngIf="selectedFile">
+          <p class="font-label-md text-label-md text-on-surface">{{ selectedFile.name }}</p>
+          <p class="text-caption text-on-surface-variant">{{ fileSizeLabel() }} &nbsp;&bull;&nbsp; click to change</p>
+        </ng-container>
+
+        <input #fileInput type="file" accept=".csv,.xlsx" class="hidden" (change)="onFileInput($event)">
+      </div>
+
+      <!-- Global (non-row) error message -->
+      <div *ngIf="globalError" class="flex items-center gap-sm bg-error/10 border border-error/20 rounded-lg px-md py-sm">
+        <span class="material-symbols-outlined text-error text-[18px]">error</span>
+        <span class="text-caption text-error">{{ globalError }}</span>
+      </div>
+
+      <!-- Upload progress -->
+      <div *ngIf="state === 'uploading'" class="flex items-center gap-sm justify-center py-xs text-on-surface-variant">
+        <span class="material-symbols-outlined text-primary animate-spin">sync</span>
+        <span class="font-label-md text-label-md">Processing file&hellip;</span>
+      </div>
+
+      <!-- Success banner -->
+      <div *ngIf="state === 'success'" class="flex items-center gap-sm bg-tertiary/10 border border-tertiary/20 rounded-xl px-md py-sm">
+        <span class="material-symbols-outlined text-tertiary text-[22px]">check_circle</span>
+        <span class="font-label-md text-label-md text-tertiary-fixed">
+          {{ importedCount }} employee{{ importedCount === 1 ? '' : 's' }} imported successfully.
+        </span>
+      </div>
+
+      <!-- Validation error table -->
+      <div *ngIf="state === 'error' && errors.length" class="flex flex-col gap-xs">
+        <div class="flex items-center gap-xs">
+          <span class="material-symbols-outlined text-error text-[18px]">report</span>
+          <span class="font-label-md text-label-md font-semibold text-error">
+            {{ errors.length }} validation error{{ errors.length === 1 ? '' : 's' }} — fix and re-upload
+          </span>
+        </div>
+
+        <div class="max-h-[220px] overflow-y-auto rounded-lg border border-error/15 divide-y divide-error/10">
+          <div
+            *ngFor="let err of errors"
+            class="flex gap-sm items-start px-sm py-xs bg-error/[0.04] hover:bg-error/[0.07] transition-colors">
+            <span class="text-[11px] font-bold text-error/70 shrink-0 w-14 pt-px">Row {{ err.row }}</span>
+            <span
+              *ngIf="err.field"
+              class="text-[11px] font-semibold text-on-surface-variant/60 shrink-0 w-32 pt-px truncate"
+              title="{{ err.field }}">
+              {{ err.field }}
+            </span>
+            <span class="text-caption text-on-surface/85 leading-snug">{{ err.message }}</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Footer -->
+    <div class="flex items-center justify-between px-lg py-md border-t border-white/10 bg-surface-container/20">
+      <button
+        (click)="close()"
+        class="py-sm px-md bg-white/5 border border-white/10 text-on-surface-variant font-label-md text-label-md rounded-lg hover:text-on-surface transition-colors">
+        {{ state === 'success' ? 'Close' : 'Cancel' }}
+      </button>
+
+      <button
+        *ngIf="state !== 'success'"
+        (click)="upload()"
+        [disabled]="!selectedFile || state === 'uploading'"
+        class="py-sm px-md bg-primary text-on-primary font-label-md text-label-md rounded-lg hover:scale-[1.02] transition-all disabled:opacity-40 disabled:scale-100 flex items-center gap-xs">
+        <span class="material-symbols-outlined text-[18px]">{{ state === 'uploading' ? 'sync' : 'upload' }}</span>
+        {{ state === 'uploading' ? 'Uploading…' : 'Upload &amp; Import' }}
+      </button>
+
+      <button
+        *ngIf="state === 'success'"
+        (click)="reset()"
+        class="py-sm px-md bg-white/5 border border-white/10 text-on-surface font-label-md text-label-md rounded-lg hover:text-primary transition-colors flex items-center gap-xs">
+        <span class="material-symbols-outlined text-[18px]">restart_alt</span>
+        Import Another
+      </button>
+    </div>
+
+  </div>
+</div>
