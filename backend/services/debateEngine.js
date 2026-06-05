@@ -2,7 +2,29 @@
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const fs = require('fs');
 const path = require('path');
-const { getConfigs } = require('./agentConfigs');
+const { getConfigsForUser, DEFAULT_CONFIGS } = require('./agentConfigs');
+
+// Token-bucket rate limiter — shared across all evaluations in this process.
+// Tracks real request timestamps so back-to-back evaluations don't burst past the limit.
+const geminiRateLimiter = {
+  timestamps: [],
+  MAX_PER_MINUTE: 10, // conservative buffer under the 15 RPM free-tier limit
+
+  async throttle() {
+    const now = Date.now();
+    const windowStart = now - 60_000;
+    this.timestamps = this.timestamps.filter(t => t > windowStart);
+
+    if (this.timestamps.length >= this.MAX_PER_MINUTE) {
+      const waitMs = this.timestamps[0] + 60_000 - now + 500;
+      console.log(`[RateLimit] ${this.timestamps.length} requests in last 60s — waiting ${Math.round(waitMs / 1000)}s before next call`);
+      await new Promise(r => setTimeout(r, waitMs));
+      this.timestamps = this.timestamps.filter(t => t > Date.now() - 60_000);
+    }
+
+    this.timestamps.push(Date.now());
+  }
+};
 
 // JSON fallback when DB is unavailable
 const getEmployeesJSON = () => {
@@ -187,9 +209,10 @@ GO = approved as-is. NEGOTIATE = viable but needs revised terms. NO-GO = rejecte
 Respond in 3-5 sentences, then the verdict tag.`
 };
 
-// ─── Smart fallback responses (context-aware, used when Gemini quota is exceeded) ─
+// ─── Smart fallback responses (context-aware, honours slider configs) ────────
 
-const buildFallback = (agentName, session, roster, employees, debateHistory, searchResults = []) => {
+const buildFallback = (agentName, session, roster, employees, debateHistory, agentConfigs, searchResults = []) => {
+  const agentConfig = (agentConfigs || {})[agentName] || DEFAULT_CONFIGS[agentName] || {};
   const budget = Number(session.budget);
   const months = parseInt(session.timeline_months);
   const industry = (session.industry || '').toLowerCase();
@@ -210,6 +233,27 @@ const buildFallback = (agentName, session, roster, employees, debateHistory, sea
     ? Math.max(...debateHistory.map(m => m.negotiation_round))
     : 1;
 
+  // Slider values for this specific agent
+  const slider1 = agentConfig.slider1 ?? 50;
+  const slider2 = agentConfig.slider2 ?? 50;
+
+  const aeAggressive = slider1 >= 70;
+  const aeCautious   = slider1 <= 30;
+  const boardHighRisk = slider2 >= 70;
+  const boardLowRisk  = slider2 <= 30;
+  const financialViable = budget >= estimatedCost * (1.0 - (slider1 / 250));
+  const legalStrict = slider1 <= 30;
+
+  // Detect unconditional rejection-intent in custom directives.
+  // Conditional directives (if/unless/when) are skipped — only Gemini can evaluate those.
+  const directiveBlocksApproval = (() => {
+    const d = agentConfig.customDirectives || '';
+    if (!d) return false;
+    const hasCondition = /\b(if|unless|when|only if|except|provided that|in case|where|whenever)\b/i.test(d);
+    if (hasCondition) return false;
+    return /\b(do not|don't|never|must not|cannot|block|reject|refuse|no-go|disapprove)\b.{0,40}\b(approve|proceed|accept|go|endorse|support|recommend)\b/i.test(d);
+  })();
+
   // Reputation check from web search results
   const negativeKeywords = ['lawsuit', 'sue', 'scam', 'fraud', 'settle', 'fine', 'investigate', 'complaint', 'court', 'guilty', 'prosecut', 'legal battle', 'dispute', 'controversy', 'negative'];
   const negativeResults = (searchResults || []).filter(r => {
@@ -218,12 +262,12 @@ const buildFallback = (agentName, session, roster, employees, debateHistory, sea
   });
   const hasNegativeReputation = negativeResults.length > 0;
 
-  // Identify best candidates with richer signals
+  // Rank available developers by experience, domain match, leave risk, and workload
   const ranked = availableDevs
     .map(e => {
       let score = 0;
       const exp = e.years_experience || 0;
-      score += Math.min(exp * 2, 16); // up to 16 pts for 8+ yrs
+      score += Math.min(exp * 2, 16);
       if (e.hipaa_certified && isHealthcare) score += 10;
       const pastDomains = (e.past_projects || []).map(p =>
         typeof p === 'string' ? '' : (p.domain || '').toLowerCase()
@@ -231,8 +275,7 @@ const buildFallback = (agentName, session, roster, employees, debateHistory, sea
       if (pastDomains.some(d => d.includes(industry.split(' ')[0]))) score += 8;
       const leaveRisk = (e.upcoming_leaves || []).some(l => (l.duration_days || 0) >= 14);
       if (leaveRisk) score -= 6;
-      const workload = e.current_project_count || 0;
-      score -= workload * 5;
+      score -= (e.current_project_count || 0) * 5;
       return { ...e, score, leaveRisk };
     })
     .sort((a, b) => b.score - a.score);
@@ -244,26 +287,42 @@ const buildFallback = (agentName, session, roster, employees, debateHistory, sea
 
   const map = {
     'Account Executive': {
-      1: `The opportunity from ${client} for "${project}" is exactly the strategic account we've been targeting in the ${session.industry} sector. Their proposed $${budget.toLocaleString()} investment over ${months} months aligns well with our current go-to-market focus. I'm confident in our ability to deliver and strongly advocate for a GO — we cannot afford to let this slip to a competitor.`,
-      2: `I hear the concerns raised by Finance, Legal, and Architecture — and I'm already in dialogue with ${client} to address them. I propose a revised budget of $${Math.round(budget * 1.22).toLocaleString()} with a phased delivery model: Phase 1 at ${Math.ceil(months * 0.6)} months for MVP, Phase 2 for full rollout. This structure de-risks delivery while securing the engagement. Can the team approve this revised framework?`
+      1: directiveBlocksApproval
+        ? `I've reviewed the "${project}" opportunity from ${client}, but under my current operational directives I am unable to advocate for approval of this engagement. I am flagging this project as blocked at the sales stage pending a directive review. I recommend the board defer this tender.`
+        : aeAggressive
+        ? `This is a MUST-WIN engagement — the "${project}" account from ${client} is exactly the strategic foothold we need in the ${session.industry} vertical. Their $${budget.toLocaleString()} investment over ${months} months is a direct pipeline priority for this quarter. I am pushing hard for an unconditional GO; losing this to a competitor is not an option.`
+        : aeCautious
+        ? `The "${project}" opportunity from ${client} is worth careful consideration, though I want to ensure our team can genuinely deliver before committing. The proposed $${budget.toLocaleString()} budget over ${months} months merits a measured GO pending full team and compliance sign-off. I support advancing cautiously.`
+        : `The opportunity from ${client} for "${project}" is exactly the strategic account we've been targeting in the ${session.industry} sector. Their proposed $${budget.toLocaleString()} investment over ${months} months aligns well with our current go-to-market focus. I'm confident in our ability to deliver and strongly advocate for a GO — we cannot afford to let this slip to a competitor.`,
+      2: directiveBlocksApproval
+        ? `My operational directives prevent me from proposing revised terms on this engagement. I cannot submit a counter-offer and must maintain my objection to proceeding.`
+        : `I hear the concerns raised by Finance, Legal, and Architecture — and I'm already in dialogue with ${client} to address them. I propose a revised budget of $${Math.round(budget * 1.22).toLocaleString()} with a phased delivery model: Phase 1 at ${Math.ceil(months * 0.6)} months for MVP, Phase 2 for full rollout. This structure de-risks delivery while securing the engagement. Can the team approve this revised framework?`
     },
     'Resource': {
-      1: availableDevs.length >= neededDevs
-        ? `Bench review complete for "${project}" (${session.industry} vertical, ${months}-month window). I recommend the following ${neededDevs}-person team: ${nomineeNames}. ${isHealthcare ? `${hipaaDevs.length} HIPAA-certified developers are included, satisfying compliance staffing requirements.` : 'Domain alignment and experience levels are confirmed.'} ${nominees.some(e => e.leaveRisk) ? `Note: one or more nominees have leave windows exceeding 2 weeks during the project — backup coverage should be planned.` : 'No disruptive leave conflicts identified within this timeline.'}`
+      1: directiveBlocksApproval
+        ? `Under current operational directives, I am required to flag this engagement as unapproved from a resource perspective regardless of bench availability. Staffing cannot be allocated to "${project}" at this time.`
+        : availableDevs.length >= neededDevs
+        ? `Bench review complete for "${project}" (${session.industry} vertical, ${months}-month window). I recommend the following ${neededDevs}-person team: ${nomineeNames}. ${isHealthcare ? `${hipaaDevs.length} HIPAA-certified developers are included, satisfying compliance staffing requirements.` : 'Domain alignment and experience levels are confirmed.'} ${nominees.some(e => e.leaveRisk) ? `Note: one or more nominees have leave windows exceeding 2 weeks — backup coverage should be planned.` : 'No disruptive leave conflicts identified within this timeline.'}`
         : `Bench review for "${project}" reveals a staffing gap. We need ${neededDevs} developers but only ${availableDevs.length} are fully available. Best available candidates: ${nominees.length > 0 ? nomineeNames : 'none cleared'}. I recommend extending the timeline to ${Math.ceil(months * 1.3)} months or sub-contracting ${neededDevs - availableDevs.length} role(s). This must be resolved before we commit.`,
       2: `Following the ${roster.includes('Account Executive') ? 'Account Executive' : 'Financial Analyst'}'s revised phased proposal, I've re-examined staffing under a reduced Phase 1 team of ${Math.max(2, neededDevs - 1)}. With current bench capacity and the adjusted scope, we can proceed. Leave impacts are manageable within a phased structure. I'm prepared to approve staffing for the revised plan.`
     },
     'Technical Architect': {
-      1: viable
+      1: directiveBlocksApproval
+        ? `My current directives require me to withhold technical sign-off on "${project}". I am flagging this as technically unapproved pending a policy review, regardless of feasibility assessment.`
+        : viable
         ? `Technical review of "${project}" is complete. The proposed team brings relevant experience — ${nominees.length > 0 ? `${nominees[0].name} (${nominees[0].years_experience} yrs) can anchor architectural decisions` : 'a senior technical lead is available'}. The ${months}-month timeline is achievable with a structured sprint cadence; I recommend a 2-week discovery sprint upfront. ${nominees.some(e => e.leaveRisk) ? 'A leave coverage plan must be defined for staff with mid-project absences.' : 'No continuity risks from planned absences.'} Technical risk: LOW.`
         : `"${project}" raises delivery concerns. The ${months}-month window is aggressive for a project of this complexity, and ${neededDevs > availableDevs.length ? 'bench capacity is insufficient to staff it correctly' : 'experience levels on the proposed team may not sustain architecture ownership at this pace'}. I estimate a realistic timeline of ${Math.ceil(months * 1.3)}–${Math.ceil(months * 1.5)} months. I'm flagging this as HIGH delivery risk at current parameters.`,
       2: `Under the ${roster.includes('Account Executive') ? "Account Executive's" : "Financial Analyst's"} phased model, technical risk drops significantly. Phase 1 as a focused MVP is architecturally sound — core modules first, integrations deferred. I can approve the revised structure provided a formal architecture checkpoint occurs at Phase 1 close and leave coverage is documented for key resources.`
     },
     'Legal': {
-      1: hasNegativeReputation
-        ? `I must flag a critical reputational and legal concern for "${project}". A background check on ${client} revealed negative search results or active legal disputes: "${negativeResults[0].title} - ${negativeResults[0].snippet.slice(0, 120)}...". Proceeding with this client presents high litigation risks and brand damage potential. I am placing a strict conditional hold until a full due diligence audit is completed.`
+      1: directiveBlocksApproval
+        ? `Under active operational directives, Legal is required to withhold approval for "${project}". I am issuing a formal compliance block on this engagement regardless of regulatory standing.`
+        : hasNegativeReputation
+        ? `I must flag a critical reputational and legal concern for "${project}". A background check on ${client} revealed negative search results or active legal disputes: "${negativeResults[0].title} — ${negativeResults[0].snippet.slice(0, 120)}...". Proceeding presents high litigation and brand damage risk. I am placing a strict conditional hold until a full due diligence audit is completed.`
         : isHealthcare
-        ? `"${project}" operates in a HIPAA-regulated environment — this is non-negotiable. All developers assigned must hold active HIPAA certification, and we require a signed Business Associate Agreement (BAA) from ${client} prior to any data access. ${hipaaDevs.length > 0 ? `We have ${hipaaDevs.length} certified developers available (${hipaaDevs.map(d => d.name).join(', ')}), so compliance is achievable, but contractual protections must be in place before go-live.` : `Currently, none of our available bench developers are HIPAA-certified — this is a blocking compliance risk that must be resolved.`}`
+        ? legalStrict
+          ? `"${project}" operates in a HIPAA-regulated environment — compliance here is absolute and non-negotiable. A signed Business Associate Agreement (BAA) and full certification audit of all assigned developers are mandatory before any data access. ${hipaaDevs.length > 0 ? `We have ${hipaaDevs.length} certified developers available, but I will require formal documentation before approving.` : `Currently no available developers are HIPAA-certified — this is a hard blocker. We cannot proceed until this is resolved.`}`
+          : `"${project}" operates in a HIPAA-regulated environment — this is non-negotiable. All developers assigned must hold active HIPAA certification, and we require a signed Business Associate Agreement (BAA) from ${client} prior to any data access. ${hipaaDevs.length > 0 ? `We have ${hipaaDevs.length} certified developers available (${hipaaDevs.map(d => d.name).join(', ')}), so compliance is achievable, but contractual protections must be in place before go-live.` : `Currently, none of our available bench developers are HIPAA-certified — this is a blocking compliance risk that must be resolved.`}`
         : isFinance
         ? `"${project}" triggers PCI-DSS Level 1 and SOC 2 Type II obligations as a Financial Services engagement. All infrastructure must be certified and all code subject to independent security audits before production deployment. I recommend building compliance costs (~$15,000) into the contract and including a liability cap clause. Legal can approve subject to these contractual conditions.`
         : `Legal review of "${project}" is complete. Standard commercial IP terms apply — no elevated regulatory exposure detected. I recommend including a robust change-order process, IP ownership clauses, and a data-processing addendum. No compliance blockers identified. Cleared for GO from a legal standpoint.`,
@@ -272,27 +331,35 @@ const buildFallback = (agentName, session, roster, employees, debateHistory, sea
         : `${roster.includes('Account Executive') ? "The Account Executive's" : "The Financial Analyst's"} revised proposal adequately addresses my primary concerns. Subject to the following conditions: (1) BAA signed before data ingestion, (2) all certified resources formally assigned in the SOW, and (3) a compliance audit milestone included in the delivery plan — Legal will withdraw its objection and approve the revised engagement.`
     },
     'Financial': {
-      1: viable
+      1: directiveBlocksApproval
+        ? `Under current directives, Financial is required to flag "${project}" as unapproved. I cannot endorse this engagement regardless of the margin analysis.`
+        : financialViable
         ? `Financial analysis complete for "${project}". Staffing ${neededDevs} developers at standard bench rates for ${months} months projects a total cost of approximately $${estimatedCost.toLocaleString()}, against the proposed budget of $${budget.toLocaleString()}. This yields a projected gross margin of ${margin}% — within our acceptable range. I support proceeding.`
         : `The financial case for "${project}" is untenable. Staffing ${neededDevs} developers for ${months} months at standard rates totals $${estimatedCost.toLocaleString()}, which exceeds ${client}'s budget of $${budget.toLocaleString()} by $${(estimatedCost - budget).toLocaleString()}. However, to secure this strategic account, I propose we renegotiate for a revised budget of $${Math.round(budget * 1.22).toLocaleString()} or adopt a phased MVP delivery model to manage our delivery cost.`,
       2: `I propose a revised budget of $${Math.round(budget * 1.22).toLocaleString()} from ${client} with a phased delivery model: Phase 1 as MVP, Phase 2 for full rollout. This structure recovers our margin to approximately ${Math.round((((budget * 1.22) - estimatedCost) / (budget * 1.22)) * 100)}% and resolves the initial financial risk.`
     },
     'Risk Analyst': {
-      1: viable
+      1: directiveBlocksApproval
+        ? `Operational directives require me to treat "${project}" as a NO-GO risk regardless of quantitative assessment. I am formally flagging this engagement as blocked under current policy.`
+        : viable
         ? `Risk assessment for "${project}" is complete. Primary risks: scope creep in ${session.industry} environments (~35% probability), ${nominees.some(e => e.leaveRisk) ? 'mid-project leave gaps for key staff (flag for contingency coverage)' : 'key-person dependency on lead resources'}, and ${isHealthcare ? 'HIPAA audit delays' : isFinance ? 'PCI-DSS certification timeline' : 'third-party API integration delays'}. Overall risk tier: MEDIUM. Recommended mitigations: weekly risk register reviews, a 10% contingency buffer, and formal leave-coverage assignments.`
         : `Risk assessment for "${project}" raises a RED FLAG. Under-resourced budget, tight timeline, and ${isHealthcare ? 'HIPAA obligations' : isFinance ? 'PCI-DSS requirements' : 'complex integration requirements'} create a HIGH delivery risk profile. Probability of on-time, on-budget delivery at current parameters: ~40%. I strongly recommend renegotiating terms before commitment.`,
       2: `Under the revised phased model proposed by the ${roster.includes('Account Executive') ? 'Account Executive' : 'Financial Analyst'}, the risk profile improves from HIGH to MEDIUM. Phase-gated delivery reduces exposure materially. Provided risk checkpoints are embedded at each phase boundary, contingency is contractually reserved at 10%, and leave-coverage plans are documented, I can revise my rating to ACCEPTABLE.`
     },
     'Operations Manager': {
-      1: `Operations review of "${project}" is complete. A ${months}-month engagement requires ${isHealthcare ? 'a HIPAA-aware Agile framework with biweekly compliance checkpoints' : 'a standard Agile sprint cadence with 2-week sprints'}. ${availableDevs.length >= neededDevs ? `Team onboarding can begin within 5–7 business days given current bench availability.` : `With current availability, onboarding will take 3–4 weeks, compressing the delivery window.`} ${nominees.some(e => e.leaveRisk) ? 'A leave-coverage roster must be published before sprint 1 to avoid mid-sprint disruptions.' : ''} I recommend a formal kickoff workshop and project charter sign-off before sprint 1.`,
-      2: `The phased delivery structure proposed is operationally sound. Phase 1 MVP with a focused core team reduces coordination overhead significantly. I'll implement a RAID log from Day 1 and establish weekly stakeholder reporting to ${client}. Operations can support the revised plan.`
+      1: directiveBlocksApproval
+        ? `Operational directives prevent me from endorsing "${project}" at this time. I am withholding operational sign-off pending a policy directive review.`
+        : `Operations review of "${project}" is complete. A ${months}-month project of this scale requires ${isHealthcare ? 'a HIPAA-aware Agile framework with biweekly compliance checkpoints' : 'a standard Agile sprint cadence with 2-week sprints'}. ${availableDevs.length >= neededDevs ? `Team onboarding can begin within 5–7 business days given current bench availability.` : `With current availability, onboarding will take 3–4 weeks, compressing the delivery window.`} ${nominees.some(e => e.leaveRisk) ? 'A leave-coverage roster must be published before sprint 1 to avoid mid-sprint disruptions.' : ''} I recommend a formal kickoff workshop and a project charter sign-off before sprint 1.`,
+      2: `The phased delivery structure proposed is operationally sound. Phase 1 MVP with a focused core team reduces coordination overhead significantly. I'll implement a structured RAID log from Day 1 and establish weekly stakeholder reporting to ${client}. Operations can support the revised plan.`
     },
     'Board of Directors': {
-      1: viable && (!isHealthcare || hipaaDevs.length > 0)
-        ? `The Board has reviewed all departmental assessments for the "${project}" tender submitted by ${client}. All participating departments have validated the project parameters within their respective remits. Risk exposure is within tolerance and strategic fit is confirmed. The Board issues its official verdict.\n[VERDICT: GO]`
+      1: directiveBlocksApproval
+        ? `The Board has reviewed the "${project}" tender from ${client}. Standing operational directives require the Board to withhold approval on this engagement. The Board issues its binding ruling.\n[VERDICT: NO-GO]`
+        : (boardHighRisk || viable) && (!isHealthcare || hipaaDevs.length > 0) && !boardLowRisk
+        ? `The Board has reviewed all departmental assessments for the "${project}" tender submitted by ${client}. All departments — ${roster.includes('Account Executive') ? 'Sales' : 'Sales/Finance'}, Resource, Technical Architecture, Legal, and Finance — have validated the project parameters within their respective remits. Risk exposure is within tolerance and strategic fit is confirmed. The Board issues its official verdict.\n[VERDICT: GO]`
         : `The Board has reviewed all departmental assessments for "${project}". While the strategic opportunity is acknowledged, ${viable ? 'compliance and delivery' : 'financial viability and delivery'} concerns raised by multiple departments require formal resolution before commitment can be made. The Board directs ${roster.includes('Account Executive') ? 'Sales' : 'the Financial Analyst'} to re-engage ${client} with revised terms addressing the flagged objections. The Board issues a conditional ruling.\n[VERDICT: NEGOTIATE]`,
       2: `The Board has considered the revised proposal presented during renegotiation for the "${project}" tender. The ${roster.includes('Account Executive') ? "Account Executive's" : "Financial Analyst's"} counter-offer addresses the core financial and compliance concerns, and the phased delivery model reduces technical risk to an acceptable level. Subject to execution of the formal amendment and compliance sign-offs, the Board approves advancing this engagement.\n[VERDICT: NEGOTIATE]`,
-      3: `The Board has completed a full two-round review of the "${project}" tender with ${client}. The renegotiation round produced a viable revised framework that satisfies Financial, Legal, and Technical requirements. Conditional approval is granted, pending execution of the revised SOW and compliance documentation. The Board issues its final ruling.\n[VERDICT: NEGOTIATE]`
+      3: `The Board has completed a full two-round review of the "${project}" tender with ${client}. The renegotiation produced a viable revised framework satisfying Financial, Legal, and Technical requirements. Conditional approval is granted, pending execution of the revised SOW and compliance documentation. The Board issues its final ruling.\n[VERDICT: NEGOTIATE]`
     }
   };
 
@@ -305,11 +372,10 @@ const buildFallback = (agentName, session, roster, employees, debateHistory, sea
 
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-const callGemini = async (agentName, contextPrompt, session, roster, employees, debateHistory, searchResults = []) => {
+const callGemini = async (agentName, contextPrompt, session, roster, employees, debateHistory, agentConfigs, searchResults = []) => {
   const apiKey = process.env.GEMINI_API_KEY;
+  const agentConfig = (agentConfigs || {})[agentName] || DEFAULT_CONFIGS[agentName] || {};
 
-  const configs = getConfigs();
-  const agentConfig = configs[agentName] || {};
   let systemInstruction = AGENT_PERSONAS[agentName];
 
   if (agentConfig.customDirectives) {
@@ -317,24 +383,28 @@ const callGemini = async (agentName, contextPrompt, session, roster, employees, 
   }
 
   if (agentName === 'Account Executive') {
-    systemInstruction += `\nCaution Level: ${agentConfig.slider1}%. Aggressiveness Level: ${agentConfig.slider2}%.`;
+    systemInstruction += `\nSales aggressiveness (0=very cautious advocate, 100=maximum aggressive push): ${agentConfig.slider1}%.`;
+    systemInstruction += `\nRisk tolerance (0=only risk-free deals, 100=high risk tolerance): ${agentConfig.slider2}%.`;
   } else if (agentName === 'Legal') {
-    systemInstruction += `\nStrict Adherence: ${agentConfig.slider1}%. Zero Tolerance: ${agentConfig.slider2}%.`;
+    systemInstruction += `\nRegulatory interpretation (0=strict literal adherence, 100=interpretative flexibility): ${agentConfig.slider1}%.`;
+    systemInstruction += `\nCompliance tolerance (0=absolute zero tolerance for gaps, 100=edge cases acceptable): ${agentConfig.slider2}%.`;
   } else if (agentName === 'Resource') {
-    systemInstruction += `\nConservative Estimation: ${agentConfig.slider1}%. Proven Tech Preference: ${agentConfig.slider2}%.`;
+    systemInstruction += `\nEstimation style (0=conservative staffing estimates, 100=optimistic estimates): ${agentConfig.slider1}%.`;
+    systemInstruction += `\nTechnology stance (0=proven tech only, 100=bleeding edge acceptable): ${agentConfig.slider2}%.`;
   } else if (agentName === 'Financial') {
-    systemInstruction += `\nMargin Protection: ${agentConfig.slider1}%. Fixed Costs Preference: ${agentConfig.slider2}%.`;
+    systemInstruction += `\nPricing stance (0=strict margin protection required, 100=aggressive pricing/lower margins acceptable): ${agentConfig.slider1}%.`;
+    systemInstruction += `\nCost structure preference (0=fixed costs strongly preferred, 100=variable/leverage models acceptable): ${agentConfig.slider2}%.`;
   } else if (agentName === 'Board of Directors') {
-    systemInstruction += `\nDefensive Strategy: ${agentConfig.slider1}%. Minimize Exposure: ${agentConfig.slider2}%.`;
+    systemInstruction += `\nStrategic stance (0=fully defensive/conservative, 100=aggressive market capture): ${agentConfig.slider1}%.`;
+    systemInstruction += `\nRisk appetite (0=minimise all exposure, 100=high beta/aggressive risk acceptable): ${agentConfig.slider2}%.`;
   }
 
   if (apiKey) {
+    const PRIMARY_MODEL = 'gemini-2.5-flash';
+
     try {
       const genAI = new GoogleGenerativeAI(apiKey);
-      const modelOptions = {
-        model: 'gemini-2.5-flash',
-        systemInstruction: systemInstruction
-      };
+      const modelOptions = { model: PRIMARY_MODEL, systemInstruction };
       if (agentName === 'Legal') {
         modelOptions.tools = [{ googleSearch: {} }];
       }
@@ -342,41 +412,38 @@ const callGemini = async (agentName, contextPrompt, session, roster, employees, 
       const result = await model.generateContent(contextPrompt);
       return { text: result.response.text().trim(), source: 'gemini' };
     } catch (err) {
-      const is429 = err.message && (err.message.includes('429') || err.message.includes('Too Many Requests'));
+      const msg = err.message || '';
+      const is429 = msg.includes('429') || msg.includes('Too Many Requests');
+      const is503 = msg.includes('503') || msg.includes('Service Unavailable') || msg.includes('overloaded');
+      const shouldRetry = is429 || is503;
 
-      if (is429) {
-        const retryMatch = err.message.match(/"retryDelay":\s*"(\d+)s"/);
-        const retryDelaySec = retryMatch ? parseInt(retryMatch[1]) : 0;
+      if (shouldRetry) {
+        // Rate limits are project-wide — retry same model after API-suggested delay
+        const retryMatch = msg.match(/"retryDelay":\s*"(\d+)s"/);
+        const retryDelaySec = retryMatch ? parseInt(retryMatch[1]) : (is503 ? 8 : 20);
+        const waitMs = Math.min(retryDelaySec, 90) * 1000 + 1000;
 
-        if (retryDelaySec > 0 && retryDelaySec <= 60) {
-          console.log(`[Gemini] Rate limited for ${agentName}. Retrying in ${retryDelaySec}s...`);
-          await sleep(retryDelaySec * 1000 + 500);
+        console.log(`[Gemini] ${is429 ? 'Rate limited' : 'Service unavailable'} for ${agentName}. Retrying in ${Math.round(waitMs/1000)}s...`);
+        await sleep(waitMs);
+        await geminiRateLimiter.throttle();
 
-          try {
-            const genAI2 = new GoogleGenerativeAI(apiKey);
-            const model2Options = {
-              model: 'gemini-2.0-flash',
-              systemInstruction: systemInstruction
-            };
-            if (agentName === 'Legal') {
-              model2Options.tools = [{ googleSearch: {} }];
-            }
-            const model2 = genAI2.getGenerativeModel(model2Options);
-            const result2 = await model2.generateContent(contextPrompt);
-            return { text: result2.response.text().trim(), source: 'gemini' };
-          } catch (retryErr) {
-            console.warn(`[Gemini] Retry failed for ${agentName} — switching to fallback. Reason: ${retryErr.message.slice(0, 80)}`);
-          }
-        } else {
-          console.warn(`[Gemini] Daily quota exhausted for ${agentName} — using fallback response.`);
+        try {
+          const genAI2 = new GoogleGenerativeAI(apiKey);
+          const retry2Options = { model: PRIMARY_MODEL, systemInstruction };
+          if (agentName === 'Legal') retry2Options.tools = [{ googleSearch: {} }];
+          const model2 = genAI2.getGenerativeModel(retry2Options);
+          const result2 = await model2.generateContent(contextPrompt);
+          return { text: result2.response.text().trim(), source: 'gemini' };
+        } catch (retryErr) {
+          console.warn(`[Gemini] Retry failed for ${agentName} — switching to fallback. Reason: ${retryErr.message.slice(0, 80)}`);
         }
       } else {
-        console.error(`[Gemini] Non-quota error for ${agentName}:`, err.message);
+        console.error(`[Gemini] Non-retryable error for ${agentName}:`, msg);
       }
     }
   }
 
-  return { text: buildFallback(agentName, session, roster, employees, debateHistory, searchResults), source: 'fallback' };
+  return { text: buildFallback(agentName, session, roster, employees, debateHistory, agentConfigs, searchResults), source: 'fallback' };
 };
 
 // ─── Context prompt builder ──────────────────────────────────────────────────
@@ -472,37 +539,27 @@ const searchDuckDuckGo = async (query) => {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36'
       }
     });
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
+    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
     const html = await response.text();
     const results = [];
     const parts = html.split('class="result results_links results_links_deep web-result');
-    
     for (let i = 1; i < parts.length && results.length < 5; i++) {
       const part = parts[i];
-      
       const titleMatch = part.match(/<a[^>]*class="result__a"[^>]*>([\s\S]*?)<\/a>/);
       const title = titleMatch ? titleMatch[1].replace(/<[^>]*>/g, '').trim() : '';
-      
       const snippetMatch = part.match(/<a[^>]*class="result__snippet"[^>]*>([\s\S]*?)<\/a>/);
       const snippet = snippetMatch ? snippetMatch[1].replace(/<[^>]*>/g, '').trim() : '';
-      
       const hrefMatch = part.match(/href="([^"]*)"/);
       let link = '';
       if (hrefMatch) {
         const rawHref = hrefMatch[1];
         if (rawHref.includes('uddg=')) {
-          const uddg = rawHref.split('uddg=')[1].split('&')[0];
-          link = decodeURIComponent(uddg);
+          link = decodeURIComponent(rawHref.split('uddg=')[1].split('&')[0]);
         } else {
           link = 'https:' + rawHref;
         }
       }
-      
-      if (title || snippet) {
-        results.push({ title, snippet, link });
-      }
+      if (title || snippet) results.push({ title, snippet, link });
     }
     console.log(`[Search] Found ${results.length} web search results.`);
     return results;
@@ -512,9 +569,10 @@ const searchDuckDuckGo = async (query) => {
   }
 };
 
-const runDebateAsync = async (session, roster, emitter, pool, missionBriefing = null) => {
+const runDebateAsync = async (session, roster, emitter, pool, missionBriefing = null, userId = null, isCancelled = () => false) => {
   const sessionId = session.id;
   const employees = await getEmployeesFromDB(pool, parseInt(session.timeline_months) || 6);
+  const agentConfigs = await getConfigsForUser(pool, userId);
   const debateHistory = [];
 
   let searchResults = [];
@@ -523,13 +581,20 @@ const runDebateAsync = async (session, roster, emitter, pool, missionBriefing = 
     searchResults = await searchDuckDuckGo(query);
   }
 
+
   const emit = (event, data) => emitter.emit(`${event}:${sessionId}`, data);
 
   const runAgent = async (agentName, round, extraNote = '') => {
+    if (isCancelled()) throw new Error('CANCELLED');
+
     emit('typing', { sender: agentName });
 
+    await geminiRateLimiter.throttle();
+
+    if (isCancelled()) throw new Error('CANCELLED');
+
     const contextPrompt = buildContext(agentName, session, roster, employees, debateHistory, extraNote, missionBriefing, searchResults);
-    const { text: messageText } = await callGemini(agentName, contextPrompt, session, roster, employees, debateHistory, searchResults);
+    const { text: messageText } = await callGemini(agentName, contextPrompt, session, roster, employees, debateHistory, agentConfigs, searchResults);
 
     const msg = { sender: agentName, message_text: messageText, negotiation_round: round };
     debateHistory.push(msg);
@@ -595,6 +660,7 @@ const runDebateAsync = async (session, roster, emitter, pool, missionBriefing = 
                     lower.includes('insufficient') || lower.includes('too short') ||
                     lower.includes('aggressive') || lower.includes('cannot') ||
                     lower.includes('flagging') || lower.includes('high delivery risk') ||
+                    lower.includes('reject') || lower.includes('no-go') || lower.includes('decline') ||
                     lower.includes('continuity risk') || lower.includes('experience gap');
       agentFlags['Technical Architect'] = techFlagged ? 'conditional' : 'approved';
     }
@@ -605,7 +671,8 @@ const runDebateAsync = async (session, roster, emitter, pool, missionBriefing = 
       const lower = riskMsg.toLowerCase();
       riskFlagged = lower.includes('high') || lower.includes('critical') ||
                     lower.includes('red flag') || lower.includes('strongly recommend') ||
-                    lower.includes('renegotiat') || lower.includes('unacceptable');
+                    lower.includes('renegotiat') || lower.includes('unacceptable') ||
+                    lower.includes('reject') || lower.includes('no-go') || lower.includes('decline');
       agentFlags['Risk Analyst'] = riskFlagged ? 'conditional' : 'approved';
     }
 
@@ -614,7 +681,8 @@ const runDebateAsync = async (session, roster, emitter, pool, missionBriefing = 
       const opsMsg = await runAgent('Operations Manager', 1);
       const lower = opsMsg.toLowerCase();
       opsConcern = lower.includes('cannot execute') || lower.includes('execution gap') ||
-                   lower.includes('not executable') || lower.includes('operationally unsound');
+                   lower.includes('not executable') || lower.includes('operationally unsound') ||
+                   lower.includes('reject') || lower.includes('no-go') || lower.includes('decline');
       agentFlags['Operations Manager'] = opsConcern ? 'conditional' : 'approved';
     }
 
@@ -627,6 +695,7 @@ const runDebateAsync = async (session, roster, emitter, pool, missionBriefing = 
                      lower.includes('flagging') || lower.includes('prohibit') ||
                      lower.includes('must') || lower.includes('warning') ||
                      lower.includes('no certified') || lower.includes('baa') ||
+                     lower.includes('reject') || lower.includes('no-go') || lower.includes('decline') || lower.includes('do not accept') ||
                      lower.includes('reputation') || lower.includes('lawsuit') ||
                      lower.includes('legal battle') || lower.includes('scam') ||
                      lower.includes('court') || lower.includes('litigation') ||
@@ -643,7 +712,8 @@ const runDebateAsync = async (session, roster, emitter, pool, missionBriefing = 
                        lower.includes('unviable') || lower.includes('untenable') ||
                        lower.includes('loss') || lower.includes('exceeds') ||
                        lower.includes('shortfall') || lower.includes('blocker') ||
-                       lower.includes('cannot cover') || lower.includes('renegotiat');
+                       lower.includes('cannot cover') || lower.includes('renegotiat') ||
+                       lower.includes('reject') || lower.includes('no-go') || lower.includes('decline') || lower.includes('do not accept');
       agentFlags['Financial'] = financeFlagged ? 'flagged' : 'approved';
     }
 
@@ -717,6 +787,14 @@ const runDebateAsync = async (session, roster, emitter, pool, missionBriefing = 
     emit('done', { ...updatedSession, agentFlags });
 
   } catch (err) {
+    if (err.message === 'CANCELLED') {
+      console.log(`[Debate] Session ${sessionId} stopped after cancellation.`);
+      if (pool) {
+        pool.query('UPDATE evaluation_sessions SET final_verdict = $1 WHERE id = $2', ['CANCELLED', sessionId])
+          .catch(() => {});
+      }
+      return;
+    }
     console.error(`Debate engine error (session ${sessionId}):`, err.message);
     emit('error', { error: err.message || 'Debate engine encountered an error' });
     if (pool) {

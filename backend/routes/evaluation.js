@@ -10,6 +10,9 @@ const { runDebateAsync } = require('../services/debateEngine');
 const debateEmitter = new EventEmitter();
 debateEmitter.setMaxListeners(200);
 
+// Tracks session IDs that have been cancelled — checked before each agent call
+const cancelledSessions = new Set();
+
 // 1. Start Evaluation Session — creates DB record, triggers async Gemini debate
 router.post('/start', authenticateJWT, async (req, res) => {
   const { tenderName, clientName, budget, timelineMonths, industry, roster, missionBriefing } = req.body;
@@ -72,9 +75,12 @@ router.post('/start', authenticateJWT, async (req, res) => {
     const session = sessionRes.rows[0];
 
     // Fire-and-forget: Gemini debate runs async, events flow via debateEmitter
-    runDebateAsync(session, roster, debateEmitter, pool, missionBriefing || null).catch(err => {
-      console.error(`Unhandled debate error for session ${session.id}:`, err.message);
-    });
+    const isCancelled = () => cancelledSessions.has(session.id);
+    runDebateAsync(session, roster, debateEmitter, pool, missionBriefing || null, req.user.id, isCancelled)
+      .finally(() => cancelledSessions.delete(session.id))
+      .catch(err => {
+        console.error(`Unhandled debate error for session ${session.id}:`, err.message);
+      });
 
     res.status(201).json(session);
   } catch (err) {
@@ -134,7 +140,15 @@ router.get('/stream', async (req, res) => {
   req.on('close', cleanup);
 });
 
-// 3. Get User Session History
+// 3. Cancel a running evaluation
+router.post('/cancel/:id', authenticateJWT, (req, res) => {
+  const sessionId = parseInt(req.params.id);
+  cancelledSessions.add(sessionId);
+  console.log(`[Debate] Session ${sessionId} cancelled by user.`);
+  res.json({ success: true });
+});
+
+// 4. Get User Session History
 router.get('/history', authenticateJWT, async (req, res) => {
   try {
     const historyRes = await pool.query(
