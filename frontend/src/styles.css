@@ -1,0 +1,159 @@
+@import "tailwindcss";
+
+@theme {
+  --color-background: #131315;
+  --color-surface: #17171a;
+  --color-surface-container: #202024;
+  --color-surface-container-high: #2b2a30;
+  --color-surface-container-highest: #33323a;
+  --color-surface-container-lowest: #0e0e10;
+  --color-surface-variant: #2d2d34;
+  
+  --color-primary: #00d4ff;
+  --color-on-primary: #000000;
+  --color-secondary: #dfb7ff;
+  --color-tertiary: #56ffa8;
+  --color-tertiary-fixed: #56ffa8;
+  --color-error: #ff4a6b;
+  
+  --color-on-surface: #e5e1e4;
+  --color-on-surface-variant: #a6a2a6;
+  
+  --spacing-gutter: 1.5rem;
+  --spacing-sm: 0.75rem;
+  --spacing-md: 1rem;
+  --spacing-xs: 0.5rem;
+  --spacing-xl: 4.5rem;
+  --spacing-margin-desktop: 2rem;
+  
+  --font-display-lg: "Inter", sans-serif;
+  --font-headline-lg: "Inter", sans-serif;
+  --font-headline-md: "Inter", sans-serif;
+  --font-body-lg: "Inter", sans-serif;
+  --font-body-md: "Inter", sans-serif;
+  --font-label-md: "Inter", sans-serif;
+  --font-caption: "Inter", sans-serif;
+
+  --font-size-display-lg: 2.25rem;
+  --font-size-headline-lg: 1.75rem;
+  --font-size-headline-md: 1.35rem;
+  --font-size-body-lg: 1.125rem;
+  --font-size-body-md: 0.95rem;
+  --font-size-label-md: 0.875rem;
+  --font-size-caption: 0.75rem;
+}
+
+body {
+  background-color: #131315;
+  color: #e5e1e4;
+  font-family: 'Inter', sans-serif;
+}
+
+/* Glassmorphism Styles */
+.glass-panel {
+  background-color: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.1);
+}
+
+.glass-input {
+  background-color: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #e5e1e4;
+  transition: all 0.3s ease;
+}
+
+.glass-input:focus {
+  outline: none;
+  border-color: #00d4ff;
+  box-shadow: 0 0 0 1px #00d4ff;
+}
+
+.neon-text-primary {
+  text-shadow: 0 0 10px rgba(0, 212, 255, 0.5), 0 0 20px rgba(0, 212, 255, 0.3);
+}
+
+.pulse-ring::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  border: 1px solid #00d4ff;
+  opacity: 0;
+  animation: ping 2s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #353437;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #859398;
+}
+
+/* Custom Animations */
+@keyframes breathe {
+  0%, 100% { box-shadow: 0 0 10px rgba(0, 212, 255, 0.4), 0 0 20px rgba(0, 212, 255, 0.2); }
+  50% { box-shadow: 0 0 20px rgba(0, 212, 255, 0.7), 0 0 40px rgba(0, 212, 255, 0.4); }
+}
+.animate-breathe {
+  animation: breathe 3s ease-in-out infinite;
+}
+
+@keyframes breathe-go {
+  0%, 100% { box-shadow: 0 0 10px rgba(86, 255, 168, 0.4), inset 0 0 10px rgba(86, 255, 168, 0.2); }
+  50% { box-shadow: 0 0 20px rgba(86, 255, 168, 0.7), inset 0 0 20px rgba(86, 255, 168, 0.4); }
+}
+.animate-breathe-go {
+  animation: breathe-go 3s ease-in-out infinite;
+}
+
+@keyframes mesh {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+.bg-mesh {
+  background-color: #131315;
+  background-image: radial-gradient(at 0% 0%, rgba(0, 212, 255, 0.03) 0px, transparent 50%),
+                    radial-gradient(at 100% 0%, rgba(223, 183, 255, 0.03) 0px, transparent 50%),
+                    radial-gradient(at 100% 100%, rgba(86, 255, 168, 0.03) 0px, transparent 50%),
+                    radial-gradient(at 0% 100%, rgba(255, 193, 7, 0.03) 0px, transparent 50%);
+  background-size: 200% 200%;
+  animation: mesh 15s ease infinite;
+}
+
+.bg-dashboard-workspace {
+  background-color: #131315;
+  background-image: radial-gradient(ellipse at top, rgba(32, 34, 38, 0.4) 0%, #131315 100%);
+}
+
+@keyframes scan {
+  0% { transform: translateY(-100%); opacity: 0; }
+  10% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { transform: translateY(1000%); opacity: 0; }
+}
+.animate-scan::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background: linear-gradient(to right, transparent, rgba(86, 255, 168, 0.8), transparent);
+  box-shadow: 0 0 10px rgba(86, 255, 168, 0.5);
+  animation: scan 4s linear infinite;
+  pointer-events: none;
+  z-index: 50;
+}

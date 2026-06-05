@@ -1,0 +1,58 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: boardroom-db
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: boardroom
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - boardroom-network
+
+  backend:
+    build:
+      context: ./backend
+    container_name: boardroom-backend
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/boardroom
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - JWT_SECRET=${JWT_SECRET}
+      - NODE_ENV=${NODE_ENV}
+      - FRONTEND_URL=http://localhost:4200
+      - BACKEND_URL=http://localhost:3000
+    depends_on:
+      - db
+    networks:
+      - boardroom-network
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: boardroom-frontend
+    restart: always
+    ports:
+      - "4200:4200"
+    depends_on:
+      - backend
+    networks:
+      - boardroom-network
+
+volumes:
+  pgdata:
+
+networks:
+  boardroom-network:
+    driver: bridge

@@ -1,0 +1,395 @@
+<!-- TopNavBar -->
+<nav class="fixed top-0 w-full z-50 flex justify-between items-center px-margin-desktop h-xl bg-surface/80 backdrop-blur-xl border-b border-white/10 shadow-none">
+  <div class="flex items-center gap-sm">
+    <span class="material-symbols-outlined text-3xl text-primary neon-text-primary">forum</span>
+    <span class="font-display-lg text-headline-md font-bold text-primary tracking-tight neon-text-primary">Boardroom</span>
+  </div>
+  
+  <!-- Navigation Tabs -->
+  <div class="flex gap-md items-center">
+    <button 
+      (click)="activeTab = 'console'" 
+      [class]="activeTab === 'console' ? 'font-label-md text-label-md text-primary border-b-2 border-primary pb-1' : 'font-label-md text-label-md text-on-surface-variant hover:text-primary-container transition-colors'">
+      Executive Console
+    </button>
+    <button 
+      (click)="activeTab = 'history'; loadHistory()" 
+      [class]="activeTab === 'history' ? 'font-label-md text-label-md text-primary border-b-2 border-primary pb-1' : 'font-label-md text-label-md text-on-surface-variant hover:text-primary-container transition-colors'">
+      Evaluation History
+    </button>
+  </div>
+
+  <!-- User Telemetry & Actions -->
+  <div class="flex items-center gap-sm">
+    <div *ngIf="currentUser" class="flex items-center gap-sm bg-white/5 px-3 py-1 rounded-full border border-white/10">
+      <div class="w-[24px] h-[24px] rounded-full overflow-hidden border border-white/20">
+        <img [src]="currentUser.picture || 'https://lh3.googleusercontent.com/aida-public/AB6AXuAK8EzG8dux6Y_C3Fqvp_GBBKPl1TuF81nSjkDcSJ8bPDP2rNO1qx7CjC3iWAIq8dgLxFC4U5rE9D1qPsLO5KgHctwe3EwgKjIHrRhEF7n2rLItGyL0FR2kK00hqpzai1laKoKE08Hxi8ZvDRiXdgpqaqyjWZA0AuU5RzjlvU36Q0iBwQsiCxcdfJ9uij-TdtAwqO0gqwx2NiwkTGuOq1Efrctfdh14U2MVEAL3_ZT2Xla8oW4FjyTqXJtw3f7l16mlXpG3tOqFGbM'" alt="Avatar" class="w-full h-full object-cover">
+      </div>
+      <span class="text-caption text-on-surface/95 font-semibold">{{ currentUser.name }}</span>
+    </div>
+    <button (click)="logout()" class="p-2 text-on-surface-variant hover:text-error transition-colors flex items-center gap-xs" title="Log Out">
+      <span class="material-symbols-outlined text-[20px]">logout</span>
+    </button>
+  </div>
+</nav>
+
+<!-- Main Workspace Panel -->
+<main class="flex-1 mt-xl h-[calc(100vh-80px)] flex bg-dashboard-workspace">
+  
+  <!-- CONSOLE TAB VIEW -->
+  <ng-container *ngIf="activeTab === 'console'">
+    <!-- SIDEBAR: Setup Parameters (Left Panel) -->
+    <aside class="w-[30%] h-full border-r border-white/10 p-gutter overflow-y-auto flex flex-col gap-gutter shrink-0">
+      
+      <!-- Input parameter panel -->
+      <div class="glass-panel rounded-xl p-md flex flex-col gap-md">
+        <div class="flex items-center gap-sm border-b border-white/10 pb-sm">
+          <span class="material-symbols-outlined text-primary">edit_document</span>
+          <h2 class="font-headline-md text-headline-md text-on-surface">Project Tender Input</h2>
+        </div>
+
+        <div class="flex flex-col gap-xs">
+          <label class="font-label-md text-[13px] text-on-surface-variant">Tender / Project Name</label>
+          <input [(ngModel)]="tenderName" class="glass-input rounded-lg p-sm font-body-md text-body-md" placeholder="e.g. Next-Gen Medical Telemetry Suite">
+        </div>
+
+        <div class="flex flex-col gap-xs">
+          <label class="font-label-md text-[13px] text-on-surface-variant">Client Name</label>
+          <input [(ngModel)]="clientName" class="glass-input rounded-lg p-sm font-body-md text-body-md" placeholder="e.g. St. Jude Clinical">
+        </div>
+
+        <div class="flex gap-sm">
+          <div class="flex flex-col gap-xs flex-1">
+            <label class="font-label-md text-[13px] text-on-surface-variant">Budget ($)</label>
+            <div class="relative">
+              <span class="absolute left-sm top-1/2 -translate-y-1/2 text-on-surface-variant material-symbols-outlined text-[18px]">attach_money</span>
+              <input [(ngModel)]="budget" class="glass-input rounded-lg p-sm pl-10 w-full font-body-md text-body-md" type="number" placeholder="2,500,000">
+            </div>
+          </div>
+          <div class="flex flex-col gap-xs flex-1">
+            <label class="font-label-md text-[13px] text-on-surface-variant">Timeline (Months)</label>
+            <div class="relative">
+              <span class="absolute left-sm top-1/2 -translate-y-1/2 text-on-surface-variant material-symbols-outlined text-[18px]">calendar_month</span>
+              <input [(ngModel)]="timelineMonths" class="glass-input rounded-lg p-sm pl-10 w-full font-body-md text-body-md" type="number" placeholder="18">
+            </div>
+          </div>
+        </div>
+
+        <div class="flex flex-col gap-xs">
+          <label class="font-label-md text-[13px] text-on-surface-variant">Industry Vertical</label>
+          <select [(ngModel)]="industry" class="glass-input rounded-lg p-sm font-body-md text-body-md bg-background cursor-pointer">
+            <option value="Healthcare">Healthcare / Medical</option>
+            <option value="Financial Services">Financial Services</option>
+            <option value="E-Commerce">E-Commerce & Retail</option>
+            <option value="Cybersecurity">Cybersecurity & Infra</option>
+            <option value="Logistics">Logistics & Supply Chain</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Agent Selection Panel -->
+      <div class="glass-panel rounded-xl p-md flex flex-col gap-sm flex-1">
+        <div class="flex items-center justify-between border-b border-white/10 pb-sm mb-sm">
+          <div class="flex items-center gap-sm">
+            <span class="material-symbols-outlined text-secondary">group</span>
+            <h3 class="font-headline-md text-body-lg font-semibold text-on-surface">Agent Roster</h3>
+          </div>
+          <span class="font-caption text-caption px-2 py-1 bg-surface-variant rounded-md text-on-surface-variant">4 Agent Debate</span>
+        </div>
+
+        <div class="flex flex-col gap-xs">
+          <!-- AE: Required/Always Checked -->
+          <div class="flex items-center justify-between p-sm rounded-lg hover:bg-white/[0.02] transition-colors">
+            <div class="flex items-center gap-sm">
+              <div class="w-2 h-2 rounded-full bg-indigo-500 shadow-[0_0_8px_rgba(99,102,241,0.8)]"></div>
+              <span class="font-label-md text-label-md text-on-surface">Account Executive (Sales)</span>
+            </div>
+            <span class="text-[10px] text-indigo-400 font-bold uppercase tracking-wider bg-indigo-500/10 px-2 py-0.5 rounded border border-indigo-500/20">Required</span>
+          </div>
+
+          <!-- Legal & Compliance Toggle -->
+          <div class="flex items-center justify-between p-sm rounded-lg hover:bg-white/[0.02] transition-colors">
+            <div class="flex items-center gap-sm">
+              <div class="w-2 h-2 rounded-full bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.8)]"></div>
+              <span class="font-label-md text-label-md text-on-surface">Legal & Compliance</span>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" [(ngModel)]="agentsRoster.legal" [disabled]="evaluating" class="sr-only peer">
+              <div class="w-9 h-5 bg-surface-container-highest peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-rose-500 shadow-[inset_0_0_5px_rgba(0,0,0,0.5)] transition-all duration-300"></div>
+            </label>
+          </div>
+
+          <!-- Resource Toggle -->
+          <div class="flex items-center justify-between p-sm rounded-lg hover:bg-white/[0.02] transition-colors">
+            <div class="flex items-center gap-sm">
+              <div class="w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.8)]"></div>
+              <span class="font-label-md text-label-md text-on-surface">Resource Planner</span>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" [(ngModel)]="agentsRoster.resource" [disabled]="evaluating" class="sr-only peer">
+              <div class="w-9 h-5 bg-surface-container-highest peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-500 shadow-[inset_0_0_5px_rgba(0,0,0,0.5)] transition-all duration-300"></div>
+            </label>
+          </div>
+
+          <!-- Finance Toggle -->
+          <div class="flex items-center justify-between p-sm rounded-lg hover:bg-white/[0.02] transition-colors">
+            <div class="flex items-center gap-sm">
+              <div class="w-2 h-2 rounded-full bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.8)]"></div>
+              <span class="font-label-md text-label-md text-on-surface">Financial Analyst</span>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" [(ngModel)]="agentsRoster.finance" [disabled]="evaluating" class="sr-only peer">
+              <div class="w-9 h-5 bg-surface-container-highest peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-500 shadow-[inset_0_0_5px_rgba(0,0,0,0.5)] transition-all duration-300"></div>
+            </label>
+          </div>
+        </div>
+
+        <button 
+          (click)="initiateEvaluation()" 
+          [disabled]="evaluating"
+          class="mt-auto w-full py-sm px-md bg-primary text-on-primary font-label-md text-label-md rounded-lg relative overflow-hidden group hover:scale-[1.02] transition-all duration-300 animate-breathe disabled:opacity-50 disabled:scale-100 disabled:shadow-none">
+          <div class="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-in-out"></div>
+          <span class="relative z-10 flex items-center justify-center gap-sm">
+            <span class="material-symbols-outlined text-[18px]">play_arrow</span>
+            {{ evaluating ? 'Evaluation Running...' : 'Initiate Boardroom Evaluation' }}
+          </span>
+        </button>
+      </div>
+    </aside>
+
+    <!-- CENTER: Swarm Debate Log Feed (45% width) -->
+    <section class="w-[45%] h-full flex flex-col border-r border-white/10 relative overflow-hidden bg-mesh shrink-0">
+      <!-- Header for log feed -->
+      <div class="h-[60px] border-b border-white/10 flex items-center px-gutter justify-between bg-surface-container/30 backdrop-blur-sm z-10 shrink-0">
+        <div class="flex items-center gap-sm">
+          <span class="material-symbols-outlined text-tertiary" [class.animate-pulse]="evaluating">sensors</span>
+          <h2 class="font-headline-md text-body-lg font-semibold text-on-surface">Live Boardroom Trace</h2>
+        </div>
+        <div class="flex items-center gap-xs">
+          <span class="w-2 h-2 rounded-full" [class.bg-tertiary]="evaluating" [class.bg-white/20]="!evaluating" [class.animate-ping]="evaluating"></span>
+          <span class="font-caption text-caption text-on-surface-variant uppercase tracking-wider">{{ evaluating ? 'Streaming' : 'Ready' }}</span>
+        </div>
+      </div>
+
+      <!-- Messages Feed list container -->
+      <div #chatScrollContainer class="flex-1 overflow-y-auto p-gutter flex flex-col gap-md relative">
+        <div class="absolute inset-0 pointer-events-none bg-[linear-gradient(to_right,#ffffff03_1px,transparent_1px)] bg-[size:40px_100%] opacity-20"></div>
+        
+        <!-- Empty State Prompt -->
+        <div *ngIf="debateMessages.length === 0 && !currentTypingAgent" class="m-auto flex flex-col items-center gap-sm opacity-40 max-w-[285px] text-center">
+          <span class="material-symbols-outlined text-4xl text-primary">groups</span>
+          <p class="text-caption">Configure parameters and hit "Initiate Evaluation" to start the multi-agent deliberation swarm.</p>
+        </div>
+
+        <!-- Chat messages loop -->
+        <div *ngFor="let msg of debateMessages" class="glass-panel p-sm rounded-lg flex gap-sm group hover:bg-white/[0.05] hover:scale-[1.01] transition-all duration-300 relative">
+          <!-- Left border indicator -->
+          <div class="absolute left-0 top-0 bottom-0 w-[3px] rounded-l-lg bg-primary opacity-0 group-hover:opacity-100 transition-opacity"></div>
+          
+          <!-- Agent Avatar icon -->
+          <div [class]="'w-8 h-8 rounded flex items-center justify-center shrink-0 border ' + getAgentColorClass(msg.sender)">
+            <span class="material-symbols-outlined text-[18px]">{{ getAgentAvatar(msg.sender) }}</span>
+          </div>
+
+          <!-- Message details -->
+          <div class="flex flex-col gap-xs flex-1">
+            <div class="flex justify-between items-center">
+              <span class="font-label-md text-label-md text-on-surface font-bold">{{ msg.sender }}</span>
+              <span class="text-[10px] uppercase tracking-wider text-on-surface-variant bg-white/5 px-2 py-0.5 rounded">
+                Round {{ msg.negotiation_round }}
+              </span>
+            </div>
+            <p class="font-body-md text-caption text-on-surface-variant/90 leading-relaxed whitespace-pre-line">{{ msg.message_text }}</p>
+          </div>
+        </div>
+
+        <!-- Live Typing Indicator -->
+        <div *ngIf="currentTypingAgent" class="glass-panel p-sm rounded-lg flex gap-sm relative opacity-85 animate-pulse bg-white/[0.02]">
+          <div [class]="'w-8 h-8 rounded flex items-center justify-center shrink-0 border ' + getAgentColorClass(currentTypingAgent)">
+            <span class="material-symbols-outlined text-[18px] animate-spin">{{ getAgentAvatar(currentTypingAgent) }}</span>
+          </div>
+          <div class="flex flex-col gap-sm flex-1 justify-center">
+            <span class="font-label-md text-[13px] text-on-surface-variant font-medium">
+              {{ currentTypingAgent }} is compiling telemetry report...
+            </span>
+            <div class="w-full bg-surface-container h-1.5 rounded-full overflow-hidden">
+              <div class="bg-primary h-full rounded-full w-1/3 animate-[pulse_1.5s_ease-in-out_infinite] blur-[1px]"></div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+      <!-- Bottom Fade gradient -->
+      <div class="absolute bottom-0 w-full h-xl bg-gradient-to-t from-background to-transparent pointer-events-none"></div>
+    </section>
+
+    <!-- RIGHT: Executive Verdict (25% width) -->
+    <aside class="w-[25%] h-full p-gutter bg-surface-container-lowest flex flex-col relative shrink-0" [class.animate-scan]="evaluating">
+      <div class="sticky top-0 flex flex-col h-full gap-md">
+        <h2 class="font-headline-md text-body-lg font-semibold text-on-surface uppercase tracking-widest text-center border-b border-white/10 pb-sm">
+          Executive Verdict
+        </h2>
+
+        <!-- Active session verdict badge block -->
+        <div *ngIf="activeSession" class="glass-panel rounded-xl p-md flex flex-col items-center gap-sm mt-sm border-white/10 relative overflow-hidden shadow-2xl">
+          <!-- Pulsing blur glow -->
+          <div *ngIf="activeSession.final_verdict === 'GO'" class="absolute top-0 left-1/2 -translate-x-1/2 w-full h-1/2 bg-tertiary/10 blur-2xl pointer-events-none animate-pulse"></div>
+          <div *ngIf="activeSession.final_verdict === 'NO-GO'" class="absolute top-0 left-1/2 -translate-x-1/2 w-full h-1/2 bg-error/15 blur-2xl pointer-events-none animate-pulse"></div>
+          
+          <div 
+            [class]="'w-20 h-20 rounded-full flex items-center justify-center mb-sm relative ' + 
+                     (activeSession.final_verdict === 'GO' ? 'animate-breathe-go bg-tertiary/10' : 
+                      activeSession.final_verdict === 'NO-GO' ? 'border border-error/50 bg-error/10' : 'animate-breathe bg-white/5')">
+            <span 
+              [class]="'font-display-lg text-[22px] font-bold z-10 neon-text-primary ' + 
+                       (activeSession.final_verdict === 'GO' ? 'text-tertiary-fixed' : 
+                        activeSession.final_verdict === 'NO-GO' ? 'text-error' : 'text-primary')">
+              {{ activeSession.final_verdict }}
+            </span>
+          </div>
+          
+          <p class="font-body-md text-[13px] text-center text-on-surface-variant max-w-[90%] leading-snug">
+            {{ activeSession.final_verdict === 'EVALUATING' ? 'Swarm deliberation in progress. Awaiting Board of Directors decision...' : 
+               activeSession.final_verdict === 'GO' ? 'Consensus reached. Roster audits validated. Proceed under baseline parameters.' :
+               activeSession.final_verdict === 'NEGOTIATE' ? 'Initial criteria rejected. Re-negotiating contract parameters. Propose modified terms.' :
+               'Objections failed consensus check. Project parameters exceed risk tolerance boundaries.' }}
+          </p>
+        </div>
+
+        <div *ngIf="!activeSession" class="glass-panel rounded-xl p-6 flex flex-col items-center gap-sm mt-sm border-dashed border-white/10 justify-center min-h-[160px] opacity-40">
+          <span class="material-symbols-outlined text-3xl">balance</span>
+          <p class="text-caption text-center">Awaiting execution data</p>
+        </div>
+
+        <!-- Parameters Audit details -->
+        <div *ngIf="activeSession && activeSession.final_verdict !== 'EVALUATING'" class="flex flex-col gap-sm mt-sm">
+          <div class="flex justify-between items-center border-b border-white/5 pb-2">
+            <span class="font-label-md text-caption text-on-surface-variant">Target Cost</span>
+            <span class="font-body-md text-body-md text-on-surface font-semibold">
+              ${{ activeSession.final_budget.toLocaleString() }}
+            </span>
+          </div>
+          <div class="flex justify-between items-center border-b border-white/5 pb-2">
+            <span class="font-label-md text-caption text-on-surface-variant">Allocated Timeline</span>
+            <span class="font-body-md text-body-md text-on-surface font-semibold">
+              {{ activeSession.timeline_months }} Months
+            </span>
+          </div>
+        </div>
+
+        <!-- Risks & Advantages -->
+        <div *ngIf="activeSession && activeSession.final_verdict !== 'EVALUATING'" class="flex flex-col gap-xs mt-sm flex-1 overflow-y-auto">
+          <!-- Advantages -->
+          <ng-container *ngIf="activeSession.final_verdict === 'GO' || activeSession.final_verdict === 'NEGOTIATE'">
+            <h4 class="font-label-md text-caption uppercase text-on-surface-variant tracking-wider mt-sm mb-xs">Strategic Advantages</h4>
+            <ul class="flex flex-col gap-2">
+              <li class="flex items-start gap-2">
+                <span class="material-symbols-outlined text-tertiary text-[16px] mt-[2px]">check_circle</span>
+                <span class="font-body-md text-caption text-on-surface/85">Industry alignment checks resolved</span>
+              </li>
+              <li class="flex items-start gap-2">
+                <span class="material-symbols-outlined text-tertiary text-[16px] mt-[2px]">check_circle</span>
+                <span class="font-body-md text-caption text-on-surface/85">Roster capacity validated</span>
+              </li>
+            </ul>
+          </ng-container>
+
+          <!-- Deficits -->
+          <h4 class="font-label-md text-caption uppercase text-on-surface-variant tracking-wider mt-md mb-xs">Audit Details</h4>
+          <ul class="flex flex-col gap-2">
+            <li class="flex items-start gap-2">
+              <span [class]="'material-symbols-outlined text-[16px] mt-[2px] ' + (activeSession.final_verdict === 'NO-GO' ? 'text-error' : 'text-amber-400')">
+                {{ activeSession.final_verdict === 'NO-GO' ? 'cancel' : 'info' }}
+              </span>
+              <span class="font-body-md text-caption text-on-surface/85">
+                {{ activeSession.final_verdict === 'NO-GO' ? 'Critical resource or financial compliance barrier' : 
+                   activeSession.final_verdict === 'NEGOTIATE' ? 'Renegotiated budget margins are required' : 
+                   'Consensus was fully completed without complaints' }}
+              </span>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </aside>
+  </ng-container>
+
+  <!-- HISTORY TAB VIEW -->
+  <ng-container *ngIf="activeTab === 'history'">
+    <section class="flex-1 h-full overflow-y-auto p-gutter flex flex-col gap-md">
+      <div class="flex justify-between items-center border-b border-white/10 pb-md">
+        <div class="flex items-center gap-sm">
+          <span class="material-symbols-outlined text-primary text-3xl">history</span>
+          <h1 class="text-headline-lg text-on-surface font-bold tracking-tight">Evaluation History</h1>
+        </div>
+        <button (click)="loadHistory()" class="py-2 px-4 bg-white/5 border border-white/10 rounded-lg text-caption text-on-surface-variant hover:text-primary transition-colors flex items-center gap-xs">
+          <span class="material-symbols-outlined text-[16px]">refresh</span>
+          Refresh Log
+        </button>
+      </div>
+
+      <!-- History Table Grid -->
+      <div class="glass-panel rounded-xl overflow-hidden shadow-2xl">
+        <table class="w-full text-left border-collapse">
+          <thead>
+            <tr class="bg-white/[0.02] border-b border-white/10 text-label-md text-on-surface-variant">
+              <th class="p-4 font-semibold">Tender Details</th>
+              <th class="p-4 font-semibold">Client Name</th>
+              <th class="p-4 font-semibold">Industry</th>
+              <th class="p-4 font-semibold text-right">Proposed Budget</th>
+              <th class="p-4 font-semibold text-right">Negotiated Cost</th>
+              <th class="p-4 font-semibold text-center">Verdict</th>
+              <th class="p-4 font-semibold text-center">Action</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-white/[0.05]">
+            <tr *ngFor="let ses of historyList" class="hover:bg-white/[0.02] transition-colors font-body-md text-caption">
+              <!-- Name & date -->
+              <td class="p-4">
+                <div class="font-semibold text-on-surface mb-0.5">{{ ses.tender_name }}</div>
+                <div class="text-[10px] text-on-surface-variant/70">Timeline: {{ ses.timeline_months }} Months</div>
+              </td>
+              
+              <td class="p-4 text-on-surface/90 font-medium">{{ ses.client_name }}</td>
+              
+              <td class="p-4">
+                <span class="px-2.5 py-0.5 rounded bg-surface-container border border-white/5 text-[11px] text-on-surface-variant">
+                  {{ ses.industry }}
+                </span>
+              </td>
+              
+              <td class="p-4 text-right font-semibold text-on-surface-variant/80">${{ formatMoney(ses.budget) }}</td>
+              <td class="p-4 text-right font-semibold text-primary">${{ formatMoney(ses.final_budget) }}</td>
+              
+              <td class="p-4 text-center">
+                <span 
+                  [class]="'px-3 py-1 rounded-full text-[10px] font-bold tracking-wider uppercase border ' + 
+                           (ses.final_verdict === 'GO' ? 'bg-tertiary/10 border-tertiary/20 text-tertiary-fixed' : 
+                            ses.final_verdict === 'NO-GO' ? 'bg-error/10 border-error/20 text-error' : 
+                            'bg-amber-500/10 border-amber-500/20 text-amber-400')">
+                  {{ ses.final_verdict }}
+                </span>
+              </td>
+              
+              <td class="p-4 text-center">
+                <button 
+                  (click)="selectHistorySession(ses)"
+                  class="py-1 px-3 rounded bg-primary/10 border border-primary/20 text-primary text-[11px] font-semibold hover:bg-primary/20 hover:scale-[1.03] transition-all">
+                  Load Console
+                </button>
+              </td>
+            </tr>
+
+            <!-- Table empty state -->
+            <tr *ngIf="historyList.length === 0">
+              <td colspan="7" class="p-8 text-center text-on-surface-variant/50">
+                <span class="material-symbols-outlined text-4xl mb-2">inbox</span>
+                <p>No historical evaluation sessions saved in this profile.</p>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </ng-container>
+
+</main>

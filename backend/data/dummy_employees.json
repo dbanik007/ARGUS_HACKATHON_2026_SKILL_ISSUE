@@ -1,0 +1,50 @@
+[
+  {
+    "id": 101,
+    "name": "Sarah Connor",
+    "role": "Lead Architect",
+    "skills": ["System Design", "Node.js", "PostgreSQL", "Docker", "DevOps"],
+    "available": true,
+    "hipaa_certified": true
+  },
+  {
+    "id": 102,
+    "name": "David Miller",
+    "role": "Frontend Developer",
+    "skills": ["Angular", "TypeScript", "Tailwind CSS", "HTML5"],
+    "available": true,
+    "hipaa_certified": false
+  },
+  {
+    "id": 103,
+    "name": "Elena Rostova",
+    "role": "Fullstack Engineer",
+    "skills": ["Node.js", "Express", "Angular", "TypeScript", "PostgreSQL"],
+    "available": false,
+    "hipaa_certified": true
+  },
+  {
+    "id": 104,
+    "name": "Marcus Aurelius",
+    "role": "QA Automation Engineer",
+    "skills": ["Jest", "Playwright", "Selenium", "CI/CD"],
+    "available": true,
+    "hipaa_certified": true
+  },
+  {
+    "id": 105,
+    "name": "Ada Lovelace",
+    "role": "Backend Specialist",
+    "skills": ["Node.js", "Python", "Flask", "GraphQL", "Redis"],
+    "available": true,
+    "hipaa_certified": false
+  },
+  {
+    "id": 106,
+    "name": "Linus Torvalds",
+    "role": "Security Compliance Lead",
+    "skills": ["Cybersecurity", "Network Architecture", "HIPAA", "SOC2"],
+    "available": true,
+    "hipaa_certified": true
+  }
+]
