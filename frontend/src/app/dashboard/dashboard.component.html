@@ -2,17 +2,17 @@
 <nav class="fixed top-0 w-full z-50 flex justify-between items-center px-margin-desktop h-xl bg-surface/80 backdrop-blur-xl border-b border-white/10 shadow-none">
   <div class="flex items-center gap-sm">
     <span class="material-symbols-outlined text-3xl text-primary neon-text-primary">forum</span>
-    <span class="font-display-lg text-headline-md font-bold text-primary tracking-tight neon-text-primary">Boardroom</span>
-  </div>
-  
-  <!-- Navigation Tabs -->
-  <div class="flex gap-md items-center">
+    <span class="font-display-lg text-headline-md font-bold text-primary tracking-tight neon-text-primary">BoardRoomAI</span>
     <button
-      (click)="activeTab = 'console'"
-      [class]="activeTab === 'console' ? 'font-label-md text-label-md text-primary border-b-2 border-primary pb-1' : 'font-label-md text-label-md text-on-surface-variant hover:text-primary-container transition-colors'">
-      Executive Console
+      (click)="showImportModal = true"
+      class="ml-sm flex items-center gap-xs py-1.5 px-sm rounded-lg bg-white/5 border border-white/10 text-on-surface-variant hover:text-primary hover:border-primary/30 hover:bg-primary/5 transition-all text-[12px] font-semibold"
+      title="Import employees from CSV or XLSX">
+      <span class="material-symbols-outlined text-[17px]">upload_file</span>
+      Import Employees
     </button>
   </div>
+  
+  <div></div>
 
   <!-- User Telemetry & Actions -->
   <div class="flex items-center gap-sm">
@@ -64,17 +64,6 @@
   
   <!-- Extreme Left Sidebar -->
   <aside class="h-full border-r border-white/10 flex flex-col bg-surface-container-low shrink-0 transition-all duration-300" [ngClass]="isSidebarCollapsed ? 'w-[80px]' : 'w-[240px]'">
-    <!-- Project Header -->
-    <div class="p-4 border-b border-white/10 flex items-center gap-3">
-      <div class="w-10 h-10 rounded bg-white/5 border border-white/10 flex items-center justify-center shrink-0">
-        <span class="material-symbols-outlined text-tertiary">memory</span>
-      </div>
-      <div class="flex flex-col overflow-hidden" [class.hidden]="isSidebarCollapsed">
-        <span class="font-semibold text-on-surface truncate">Project Alpha</span>
-        <span class="text-[10px] text-tertiary uppercase tracking-wider truncate">Multi-Agent Active</span>
-      </div>
-    </div>
-
     <!-- New Eval Button -->
     <div class="p-4 border-b border-white/10">
       <button (click)="startNewEvaluation()"
@@ -108,6 +97,9 @@
       </button>
     </div>
 
+    <!-- Collapse Toggle -->
+    <div class="p-4 border-t border-white/10 flex justify-end">
+      <button (click)="isSidebarCollapsed = !isSidebarCollapsed" class="p-2 rounded hover:bg-white/5 text-on-surface-variant flex items-center justify-center transition-colors">
         <span class="material-symbols-outlined transition-transform duration-300" [class.rotate-180]="isSidebarCollapsed">keyboard_double_arrow_left</span>
       </button>
     </div>
@@ -625,8 +617,8 @@
       </div>
 
       <!-- History Table Grid -->
-      <div class="glass-panel rounded-xl overflow-hidden shadow-2xl">
-        <table class="w-full text-left border-collapse">
+      <div class="glass-panel rounded-xl overflow-auto shadow-2xl">
+        <table class="w-full min-w-[800px] text-left border-collapse">
           <thead>
             <tr class="bg-white/[0.02] border-b border-white/10 text-label-md text-on-surface-variant">
               <th class="p-4 font-semibold">Tender Details</th>
