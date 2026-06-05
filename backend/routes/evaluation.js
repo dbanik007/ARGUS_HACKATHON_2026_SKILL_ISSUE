@@ -105,8 +105,18 @@ router.post('/restart/:id', authenticateJWT, async (req, res) => {
       return res.status(404).json({ error: 'Session not found.' });
     }
 
-    // Clear previous messages
-    await pool.query('DELETE FROM debate_messages WHERE session_id = $1', [sessionId]);
+    // Keep previous messages — insert a divider row so history is preserved in the UI
+    const hasMessages = await pool.query(
+      'SELECT 1 FROM debate_messages WHERE session_id = $1 LIMIT 1',
+      [sessionId]
+    );
+    if (hasMessages.rows.length > 0) {
+      await pool.query(
+        `INSERT INTO debate_messages (session_id, sender, message_text, negotiation_round)
+         VALUES ($1, 'NewEvaluation', '', 0)`,
+        [sessionId]
+      );
+    }
 
     // Reset session with (possibly updated) form data
     const sessionRes = await pool.query(
