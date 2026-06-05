@@ -38,10 +38,10 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
   profilePicFailed: boolean = false;
 
   // Form Inputs
-  tenderName: string = 'Next-Gen Medical Telemetry Suite';
-  clientName: string = 'St. Jude Clinical';
-  budget: number = 85000;
-  timelineMonths: number = 6;
+  tenderName: string = '';
+  clientName: string = '';
+  budget: number = null as any;
+  timelineMonths: number = null as any;
   industry: string = 'Healthcare';
   
   // Validation errors
@@ -51,9 +51,11 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
 
   // Agent Roster Options
   agentsRoster = {
-    sales: true,
-    resource: true,
+    techArchitect: true,
+    riskAnalyst: true,
+    opsManager: true,
     legal: true,
+    resource: true,
     finance: true
   };
 
@@ -107,9 +109,11 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
     }
 
     if (field === 'roster') {
-      const activeCount = (this.agentsRoster.sales ? 1 : 0) +
-                          (this.agentsRoster.resource ? 1 : 0) +
+      const activeCount = (this.agentsRoster.techArchitect ? 1 : 0) +
+                          (this.agentsRoster.riskAnalyst ? 1 : 0) +
+                          (this.agentsRoster.opsManager ? 1 : 0) +
                           (this.agentsRoster.legal ? 1 : 0) +
+                          (this.agentsRoster.resource ? 1 : 0) +
                           (this.agentsRoster.finance ? 1 : 0);
       if (activeCount === 0) {
         this.errors['roster'] = 'Please select at least one agent to initiate evaluation.';
@@ -139,6 +143,11 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
   missionBriefing: string = '';
   verdictCollapsed: boolean = true;
   agentFlags: { [agent: string]: string } = {};
+
+  // Agent Verdict Reason Overlay State
+  selectedStanceAgent: string | null = null;
+  selectedStanceStatus: string | null = null;
+  selectedStanceReasons: string[] = [];
 
   // Historical sessions
   historyList: EvaluationSession[] = [];
@@ -294,9 +303,11 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
 
     // Map roster items
     const roster: string[] = [];
-    if (this.agentsRoster.sales) roster.push('Account Executive');
-    if (this.agentsRoster.resource) roster.push('Resource');
+    if (this.agentsRoster.techArchitect) roster.push('Technical Architect');
+    if (this.agentsRoster.riskAnalyst) roster.push('Risk Analyst');
+    if (this.agentsRoster.opsManager) roster.push('Operations Manager');
     if (this.agentsRoster.legal) roster.push('Legal');
+    if (this.agentsRoster.resource) roster.push('Resource');
     if (this.agentsRoster.finance) roster.push('Financial');
 
     const body = {
@@ -467,6 +478,85 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
     });
   }
 
+  toggleAgentDropdown(agent: string, status: string): void {
+    if (this.selectedStanceAgent === agent) {
+      this.selectedStanceAgent = null;
+      this.selectedStanceStatus = null;
+      this.selectedStanceReasons = [];
+    } else {
+      this.selectedStanceAgent = agent;
+      this.selectedStanceStatus = status;
+      this.selectedStanceReasons = this.extractStanceReasons(agent, status);
+    }
+  }
+
+  extractStanceReasons(agent: string, status: string): string[] {
+    const agentMsgs = this.debateMessages.filter(m => m.sender === agent);
+    if (agentMsgs.length === 0) {
+      return [`No message received yet from ${agent}.`];
+    }
+    
+    const latestMsg = agentMsgs[agentMsgs.length - 1].message_text;
+    const points: string[] = [];
+    
+    // Split by newlines, bullet point markers (*, -, •), or sentence boundaries
+    const lines = latestMsg.split(/\n+/);
+    for (let line of lines) {
+      line = line.trim();
+      line = line.replace(/^[-*•\d\.\s]+/g, '').trim();
+      if (!line) continue;
+      
+      const lower = line.toLowerCase();
+      if (lower.startsWith('hello') || 
+          lower.startsWith('dear') || 
+          lower.includes('deliberation is complete') ||
+          lower.includes('review is complete') ||
+          lower.includes('assessment is complete') ||
+          lower.includes('here is my') ||
+          lower.includes('i recommend a go') ||
+          lower.includes('strongly advocate for') ||
+          lower.includes('boardroom debate') ||
+          lower.includes('round ') ||
+          lower.includes('deliberating...')) {
+        continue;
+      }
+      
+      if (line.includes('. ') && line.length > 120) {
+        const sentences = line.split(/(?<=[.!?])\s+/);
+        for (let s of sentences) {
+          s = s.trim();
+          if (s.length > 10) {
+            points.push(s);
+          }
+        }
+      } else {
+        if (line.length > 10) {
+          points.push(line);
+        }
+      }
+    }
+    
+    if (points.length === 0) {
+      const sentences = latestMsg.split(/(?<=[.!?])\s+/);
+      for (let s of sentences) {
+        s = s.trim();
+        const lower = s.toLowerCase();
+        if (s.length > 15 && 
+            !lower.includes('complete') && 
+            !lower.includes('advocate') && 
+            !lower.includes('hello')) {
+          points.push(s);
+        }
+      }
+    }
+    
+    if (points.length === 0) {
+      return [latestMsg];
+    }
+    
+    return points.slice(0, 6);
+  }
+
   getAgentColorClass(sender: string): string {
     switch(sender) {
       case 'Account Executive': return 'border-indigo-500 text-indigo-400 bg-indigo-500/10';
@@ -484,6 +574,29 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
   formatMoney(val: any): string {
     const num = Number(val);
     return isNaN(num) ? '0' : num.toLocaleString();
+  }
+
+  startNewEvaluation(): void {
+    if (this.evaluating) return;
+    if (this.eventSource) {
+      this.eventSource.close();
+      this.eventSource = null;
+    }
+    // Reset session state
+    this.activeSession = null;
+    this.debateMessages = [];
+    this.currentTypingAgent = null;
+    this.verdictCollapsed = true;
+    this.agentFlags = {};
+    this.missionBriefing = '';
+    this.errors = {};
+    this.activeTab = 'console';
+    // Clear form
+    this.tenderName = '';
+    this.clientName = '';
+    this.budget = null as any;
+    this.timelineMonths = null as any;
+    this.industry = 'Healthcare';
   }
 
   cancelEvaluation(): void {

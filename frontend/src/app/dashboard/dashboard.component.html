@@ -14,15 +14,10 @@
   
   <!-- Navigation Tabs -->
   <div class="flex gap-md items-center">
-    <button 
-      (click)="activeTab = 'console'" 
+    <button
+      (click)="activeTab = 'console'"
       [class]="activeTab === 'console' ? 'font-label-md text-label-md text-primary border-b-2 border-primary pb-1' : 'font-label-md text-label-md text-on-surface-variant hover:text-primary-container transition-colors'">
       Executive Console
-    </button>
-    <button 
-      (click)="activeTab = 'history'; loadHistory()" 
-      [class]="activeTab === 'history' ? 'font-label-md text-label-md text-primary border-b-2 border-primary pb-1' : 'font-label-md text-label-md text-on-surface-variant hover:text-primary-container transition-colors'">
-      Evaluation History
     </button>
   </div>
 
@@ -89,7 +84,9 @@
 
     <!-- New Eval Button -->
     <div class="p-4 border-b border-white/10">
-      <button class="w-full py-2 flex items-center justify-center gap-2 border border-tertiary/30 bg-tertiary/10 text-tertiary rounded hover:bg-tertiary/20 transition-colors">
+      <button (click)="startNewEvaluation()"
+              [disabled]="evaluating"
+              class="w-full py-2 flex items-center justify-center gap-2 border border-tertiary/30 bg-tertiary/10 text-tertiary rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed hover:enabled:bg-tertiary/20">
         <span class="material-symbols-outlined text-[18px]">add</span>
         <span [class.hidden]="isSidebarCollapsed" class="text-sm font-semibold whitespace-nowrap">New Evaluation</span>
       </button>
@@ -102,7 +99,7 @@
         <span [class.hidden]="isSidebarCollapsed" class="text-sm font-medium whitespace-nowrap">Live Evaluation</span>
       </button>
       
-      <button class="w-full flex items-center gap-3 p-3 rounded-lg text-on-surface-variant hover:bg-white/5 hover:text-on-surface transition-colors">
+      <button (click)="activeTab = 'history'; loadHistory()" class="w-full flex items-center gap-3 p-3 rounded-lg text-on-surface-variant hover:bg-white/5 hover:text-on-surface transition-colors" [class.bg-white_5]="activeTab === 'history'" [class.border-l-2]="activeTab === 'history'" [class.border-tertiary]="activeTab === 'history'">
         <span class="material-symbols-outlined">folder_open</span>
         <span [class.hidden]="isSidebarCollapsed" class="text-sm font-medium whitespace-nowrap">Tender Library</span>
       </button>
@@ -187,6 +184,7 @@
             <option value="E-Commerce">E-Commerce & Retail</option>
             <option value="Cybersecurity">Cybersecurity & Infra</option>
             <option value="Logistics">Logistics & Supply Chain</option>
+            <option value="Others">Others</option>
           </select>
         </div>
       </div>
@@ -198,47 +196,45 @@
             <span class="material-symbols-outlined text-secondary">group</span>
             <h3 class="font-headline-md text-body-lg font-semibold text-on-surface">Agent Roster</h3>
           </div>
-          <span class="font-caption text-caption px-2 py-1 bg-surface-variant rounded-md text-on-surface-variant">7 Agent Debate</span>
+          <span class="font-caption text-caption px-2 py-1 bg-surface-variant rounded-md text-on-surface-variant">6 Agent Debate</span>
         </div>
 
         <div class="flex flex-col gap-xs">
-          <!-- AE Toggle -->
-          <div class="flex items-center justify-between p-sm rounded-lg hover:bg-white/2 transition-colors" [class.border-error]="errors['roster']">
-            <div class="flex items-center gap-sm">
-              <div class="w-2 h-2 rounded-full bg-indigo-500 shadow-[0_0_8px_rgba(99,102,241,0.8)]"></div>
-              <span class="font-label-md text-label-md text-on-surface">Account Executive (Sales)</span>
-            </div>
-            <label class="relative inline-flex items-center cursor-pointer">
-              <input type="checkbox" [(ngModel)]="agentsRoster.sales" (change)="validateField('roster')" [disabled]="evaluating" class="sr-only peer">
-              <div class="w-9 h-5 bg-surface-container-highest peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-500 shadow-[inset_0_0_5px_rgba(0,0,0,0.5)] transition-all duration-300"></div>
-            </label>
-          </div>
 
-          <!-- Technical Architect: Always present -->
-          <div class="flex items-center justify-between p-sm rounded-lg hover:bg-white/2 transition-colors">
+          <!-- Technical Architect Toggle -->
+          <div class="flex items-center justify-between p-sm rounded-lg hover:bg-white/2 transition-colors" [class.border-error]="errors['roster']">
             <div class="flex items-center gap-sm">
               <div class="w-2 h-2 rounded-full bg-violet-500 shadow-[0_0_8px_rgba(139,92,246,0.8)]"></div>
               <span class="font-label-md text-label-md text-on-surface">Technical Architect</span>
             </div>
-            <span class="text-[10px] text-violet-400 font-bold uppercase tracking-wider bg-violet-500/10 px-2 py-0.5 rounded border border-violet-500/20">Always</span>
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" [(ngModel)]="agentsRoster.techArchitect" (change)="validateField('roster')" [disabled]="evaluating" class="sr-only peer">
+              <div class="w-9 h-5 bg-surface-container-highest peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-violet-500 shadow-[inset_0_0_5px_rgba(0,0,0,0.5)] transition-all duration-300"></div>
+            </label>
           </div>
 
-          <!-- Risk Analyst: Always present -->
-          <div class="flex items-center justify-between p-sm rounded-lg hover:bg-white/2 transition-colors">
+          <!-- Risk Analyst Toggle -->
+          <div class="flex items-center justify-between p-sm rounded-lg hover:bg-white/2 transition-colors" [class.border-error]="errors['roster']">
             <div class="flex items-center gap-sm">
               <div class="w-2 h-2 rounded-full bg-orange-500 shadow-[0_0_8px_rgba(249,115,22,0.8)]"></div>
               <span class="font-label-md text-label-md text-on-surface">Risk Analyst</span>
             </div>
-            <span class="text-[10px] text-orange-400 font-bold uppercase tracking-wider bg-orange-500/10 px-2 py-0.5 rounded border border-orange-500/20">Always</span>
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" [(ngModel)]="agentsRoster.riskAnalyst" (change)="validateField('roster')" [disabled]="evaluating" class="sr-only peer">
+              <div class="w-9 h-5 bg-surface-container-highest peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-orange-500 shadow-[inset_0_0_5px_rgba(0,0,0,0.5)] transition-all duration-300"></div>
+            </label>
           </div>
 
-          <!-- Operations Manager: Always present -->
-          <div class="flex items-center justify-between p-sm rounded-lg hover:bg-white/2 transition-colors">
+          <!-- Operations Manager Toggle -->
+          <div class="flex items-center justify-between p-sm rounded-lg hover:bg-white/2 transition-colors" [class.border-error]="errors['roster']">
             <div class="flex items-center gap-sm">
               <div class="w-2 h-2 rounded-full bg-teal-500 shadow-[0_0_8px_rgba(20,184,166,0.8)]"></div>
               <span class="font-label-md text-label-md text-on-surface">Operations Manager</span>
             </div>
-            <span class="text-[10px] text-teal-400 font-bold uppercase tracking-wider bg-teal-500/10 px-2 py-0.5 rounded border border-teal-500/20">Always</span>
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" [(ngModel)]="agentsRoster.opsManager" (change)="validateField('roster')" [disabled]="evaluating" class="sr-only peer">
+              <div class="w-9 h-5 bg-surface-container-highest peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-teal-500 shadow-[inset_0_0_5px_rgba(0,0,0,0.5)] transition-all duration-300"></div>
+            </label>
           </div>
 
           <!-- Legal & Compliance Toggle -->
@@ -280,16 +276,7 @@
 
         <span *ngIf="errors['roster']" class="text-error text-caption my-sm animation-fade-in block text-center">{{ errors['roster'] }}</span>
 
-        <button 
-          (click)="initiateEvaluation()" 
-          [disabled]="evaluating || errors['roster']"
-          class="mt-auto w-full py-sm px-md bg-primary text-on-primary font-label-md text-label-md rounded-lg relative overflow-hidden group hover:scale-[1.02] transition-all duration-300 animate-breathe disabled:opacity-50 disabled:scale-100 disabled:shadow-none">
-          <div class="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-in-out"></div>
-          <span class="relative z-10 flex items-center justify-center gap-sm">
-            <span class="material-symbols-outlined text-[18px]">play_arrow</span>
-            {{ evaluating ? 'Evaluation Running...' : 'Initiate Boardroom Evaluation' }}
-          </span>
-        </button>
+
       </div>
     </aside>
 
@@ -500,17 +487,47 @@
           <div *ngIf="debateMessages.length > 0" class="flex flex-col gap-xs shrink-0">
             <h4 class="font-label-md text-[10px] uppercase text-on-surface-variant/60 tracking-wider">Agent Verdicts</h4>
             <div class="flex flex-col gap-1.5">
-              <div *ngFor="let stance of getAgentStances()" class="flex items-center justify-between gap-sm px-xs py-0.5 rounded hover:bg-white/3 transition-colors">
-                <div class="flex items-center gap-xs min-w-0">
-                  <div [class]="'w-1.5 h-1.5 rounded-full shrink-0 ' + getAgentDotClass(stance.agent)"></div>
-                  <span class="text-[11px] text-on-surface/80 font-medium truncate">{{ stance.agent }}</span>
+              <div *ngFor="let stance of getAgentStances()" 
+                   class="flex flex-col rounded hover:bg-white/[0.02] transition-colors border border-transparent"
+                   [class.border-white/5]="selectedStanceAgent === stance.agent"
+                   [class.bg-white/[0.02]]="selectedStanceAgent === stance.agent">
+                
+                <!-- Main Header Row -->
+                <div (click)="toggleAgentDropdown(stance.agent, stance.status)"
+                     class="flex items-center justify-between gap-sm px-2 py-1.5 cursor-pointer transition-all hover:scale-[1.01]"
+                     title="Click to toggle details">
+                  <div class="flex items-center gap-xs min-w-0">
+                    <div [class]="'w-1.5 h-1.5 rounded-full shrink-0 ' + getAgentDotClass(stance.agent)"></div>
+                    <span class="text-[11px] text-on-surface/80 font-medium truncate">{{ stance.agent }}</span>
+                    <!-- Chevron indicator -->
+                    <span class="material-symbols-outlined text-[14px] text-on-surface-variant/60 transition-transform duration-200"
+                          [class.rotate-180]="selectedStanceAgent === stance.agent">
+                      keyboard_arrow_down
+                    </span>
+                  </div>
+                  <span [class]="'text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border whitespace-nowrap shrink-0 ' +
+                                 (stance.status === 'approved' ? 'text-tertiary bg-tertiary/10 border-tertiary/20' :
+                                  stance.status === 'flagged' ? 'text-error bg-error/10 border-error/20' :
+                                  'text-amber-400 bg-amber-500/10 border-amber-500/20')">
+                    {{ stance.status === 'approved' ? 'Cleared' : stance.status === 'flagged' ? 'Flagged' : 'Conditional' }}
+                  </span>
                 </div>
-                <span [class]="'text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border whitespace-nowrap shrink-0 ' +
-                               (stance.status === 'approved' ? 'text-tertiary bg-tertiary/10 border-tertiary/20' :
-                                stance.status === 'flagged' ? 'text-error bg-error/10 border-error/20' :
-                                'text-amber-400 bg-amber-500/10 border-amber-500/20')">
-                  {{ stance.status === 'approved' ? 'Cleared' : stance.status === 'flagged' ? 'Flagged' : 'Conditional' }}
-                </span>
+
+                <!-- Dropdown Points (visible only if expanded) -->
+                <div *ngIf="selectedStanceAgent === stance.agent" 
+                     class="px-3 pb-2.5 pt-0.5 flex flex-col gap-2 border-t border-white/5 bg-white/[0.01] overflow-hidden animate-fade-in">
+                  <div *ngFor="let reason of selectedStanceReasons" 
+                       class="flex items-start gap-1.5 text-[10.5px] leading-relaxed text-on-surface-variant">
+                    <span class="material-symbols-outlined text-[12px] mt-[3.5px] shrink-0"
+                          [class.text-tertiary]="stance.status === 'approved'"
+                          [class.text-error]="stance.status === 'flagged'"
+                          [class.text-amber-400]="stance.status === 'conditional'">
+                      {{ stance.status === 'approved' ? 'check_circle' : 'double_arrow' }}
+                    </span>
+                    <span>{{ reason }}</span>
+                  </div>
+                </div>
+
               </div>
             </div>
           </div>
@@ -864,3 +881,4 @@
   </ng-container>
 
 </main>
+

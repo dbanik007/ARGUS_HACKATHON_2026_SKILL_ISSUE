@@ -4,47 +4,102 @@
     "name": "Sarah Connor",
     "role": "Lead Architect",
     "skills": ["System Design", "Node.js", "PostgreSQL", "Docker", "DevOps"],
+    "date_of_joining": "2018-03-01",
+    "years_experience": 7,
     "available": true,
-    "hipaa_certified": true
+    "hipaa_certified": true,
+    "current_project_count": 0,
+    "current_projects": [],
+    "past_projects": [
+      { "name": "MediLink Portal", "domain": "Healthcare", "complexity": "high" },
+      { "name": "SecureVault", "domain": "Cybersecurity", "complexity": "high" }
+    ],
+    "upcoming_leaves": []
   },
   {
     "id": 102,
     "name": "David Miller",
     "role": "Frontend Developer",
     "skills": ["Angular", "TypeScript", "Tailwind CSS", "HTML5"],
+    "date_of_joining": "2021-07-15",
+    "years_experience": 3,
     "available": true,
-    "hipaa_certified": false
+    "hipaa_certified": false,
+    "current_project_count": 0,
+    "current_projects": [],
+    "past_projects": [
+      { "name": "RetailX Dashboard", "domain": "E-Commerce", "complexity": "medium" }
+    ],
+    "upcoming_leaves": [
+      { "start_date": "2026-06-20", "end_date": "2026-06-27", "leave_type": "planned", "duration_days": 8 }
+    ]
   },
   {
     "id": 103,
     "name": "Elena Rostova",
     "role": "Fullstack Engineer",
     "skills": ["Node.js", "Express", "Angular", "TypeScript", "PostgreSQL"],
+    "date_of_joining": "2020-01-10",
+    "years_experience": 6,
     "available": false,
-    "hipaa_certified": true
+    "hipaa_certified": true,
+    "current_project_count": 2,
+    "current_projects": [
+      { "name": "Nexus Health", "domain": "Healthcare", "complexity": "high" },
+      { "name": "ClaimsBridge", "domain": "Financial Services", "complexity": "medium" }
+    ],
+    "past_projects": [],
+    "upcoming_leaves": []
   },
   {
     "id": 104,
     "name": "Marcus Aurelius",
     "role": "QA Automation Engineer",
     "skills": ["Jest", "Playwright", "Selenium", "CI/CD"],
+    "date_of_joining": "2019-09-01",
+    "years_experience": 5,
     "available": true,
-    "hipaa_certified": true
+    "hipaa_certified": true,
+    "current_project_count": 0,
+    "current_projects": [],
+    "past_projects": [
+      { "name": "FinTrack Audit", "domain": "Financial Services", "complexity": "high" }
+    ],
+    "upcoming_leaves": []
   },
   {
     "id": 105,
     "name": "Ada Lovelace",
     "role": "Backend Specialist",
     "skills": ["Node.js", "Python", "Flask", "GraphQL", "Redis"],
+    "date_of_joining": "2022-04-01",
+    "years_experience": 4,
     "available": true,
-    "hipaa_certified": false
+    "hipaa_certified": false,
+    "current_project_count": 1,
+    "current_projects": [
+      { "name": "LogiRoute", "domain": "Logistics", "complexity": "medium" }
+    ],
+    "past_projects": [],
+    "upcoming_leaves": [
+      { "start_date": "2026-07-01", "end_date": "2026-07-15", "leave_type": "planned", "duration_days": 15 }
+    ]
   },
   {
     "id": 106,
     "name": "Linus Torvalds",
     "role": "Security Compliance Lead",
     "skills": ["Cybersecurity", "Network Architecture", "HIPAA", "SOC2"],
+    "date_of_joining": "2017-06-01",
+    "years_experience": 9,
     "available": true,
-    "hipaa_certified": true
+    "hipaa_certified": true,
+    "current_project_count": 0,
+    "current_projects": [],
+    "past_projects": [
+      { "name": "CipherCore", "domain": "Cybersecurity", "complexity": "high" },
+      { "name": "ComplianceNet", "domain": "Healthcare", "complexity": "medium" }
+    ],
+    "upcoming_leaves": []
   }
 ]

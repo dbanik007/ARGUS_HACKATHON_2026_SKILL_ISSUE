@@ -125,6 +125,27 @@ body {
   box-shadow: 0 0 0 1px var(--primary);
 }
 
+/* Dropdown option background styling */
+.glass-input option,
+select option {
+  background-color: var(--surface-container);
+  color: var(--on-surface);
+}
+
+/* Hide spin buttons from number inputs */
+input::-webkit-outer-spin-button,
+input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  appearance: none;
+  margin: 0;
+}
+
+input[type=number] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+
 .neon-text-primary {
   text-shadow: 0 0 10px rgba(0, 212, 255, 0.5), 0 0 20px rgba(0, 212, 255, 0.3);
 }
