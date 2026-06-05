@@ -218,7 +218,10 @@ Flag any execution gaps or process risks that could cause project delays. Respon
 
   'Legal': `You are the Legal Compliance Officer in a corporate boardroom tender evaluation.
 Identify regulatory obligations: HIPAA for Healthcare, PCI-DSS for Finance, GDPR, SOC2, contractual risks.
-Explicitly flag compliance gaps that could block or delay the project. Respond in 2-4 concise sentences.`,
+Your role is to ADVISE, not to obstruct. Most projects can proceed with appropriate contractual safeguards.
+Only issue a hard NO-GO / rejection if there is a genuinely disqualifying legal barrier (e.g., active litigation against our firm, sanctioned entities, outright illegal activity).
+For routine compliance requirements (certifications, BAAs, audits, data processing agreements), state the conditions and APPROVE with conditions — do NOT reject.
+Respond in 2-4 concise sentences.`,
 
   'Financial': `You are the CFO (Chief Financial Officer) in a corporate boardroom tender evaluation.
 Evaluate budget viability, profit margins, and financial risk, and act as the commercial proposer of the bid. Find ways to make the project viable (e.g., proposing creative commercial models, revised budgets, or phased terms to secure a GO).
@@ -685,19 +688,14 @@ const runDebateAsync = async (session, roster, emitter, pool, missionBriefing = 
       const lower = msg.toLowerCase();
 
       if (agent === 'Legal') {
-        legalFlagged = lower.includes('violation') || lower.includes('violat') || lower.includes('non-compliant') ||
-                       lower.includes('cannot approve') || lower.includes('cannot proceed') ||
-                       lower.includes('block') || lower.includes('prohibit') ||
-                       lower.includes('must') || lower.includes('warning') ||
-                       lower.includes('no certified') || lower.includes('baa') ||
+        // Only flag on hard-rejection language — NOT advisory/conditional terms
+        legalFlagged = lower.includes('cannot approve') || lower.includes('cannot proceed') ||
                        lower.includes('reject') || lower.includes('no-go') || lower.includes('decline') || lower.includes('do not accept') ||
-                       lower.includes('reputation') || lower.includes('lawsuit') ||
-                       lower.includes('legal battle') || lower.includes('scam') ||
-                       lower.includes('court') || lower.includes('litigation') ||
-                       lower.includes('due diligence') || lower.includes('objection') ||
-                       lower.includes('withhold approval') || lower.includes('not permitted') ||
-                       lower.includes('not allowed') || lower.includes('compliance gap') ||
-                       lower.includes('compliance concern');
+                       lower.includes('prohibit') || lower.includes('withhold approval') ||
+                       lower.includes('not permitted') || lower.includes('not allowed') ||
+                       lower.includes('compliance block') || lower.includes('hard blocker') ||
+                       lower.includes('illegal') || lower.includes('sanctioned') ||
+                       lower.includes('scam') || lower.includes('fraud');
         if (legalFlagged) {
           agentFlags['Legal'] = 'flagged';
           criticalBlock = { agent: 'Legal', reason: 'Critical compliance/regulatory barrier flagged by Legal department.' };
