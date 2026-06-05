@@ -1,26 +1,49 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const passport = require('passport');
-const jwt = require('jsonwebtoken');
-const { pool } = require('../config/db');
+const passport = require("passport");
+const jwt = require("jsonwebtoken");
+const { pool } = require("../config/db");
 
-const jwtSecret = process.env.JWT_SECRET || 'super-secret-jwt-key';
-const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:4200';
-const backendUrl = process.env.BACKEND_URL || 'http://localhost:3000';
+const jwtSecret = process.env.JWT_SECRET || "super-secret-jwt-key";
+const frontendUrl = process.env.FRONTEND_URL || "http://localhost:4200";
+const backendUrl = process.env.BACKEND_URL || "http://localhost:3000";
 
 // Real Google OAuth Redirect
-router.get('/google', passport.authenticate('google', { scope: ['profile', 'email'], session: false }));
+router.get(
+  "/google",
+  passport.authenticate("google", {
+    scope: ["profile", "email"],
+    session: false,
+  }),
+);
 
 // Google Callback Endpoint
-router.get('/google/callback', passport.authenticate('google', { failureRedirect: `${frontendUrl}/login`, session: false }), (req, res) => {
-  const token = jwt.sign({ id: req.user.id, email: req.user.email, name: req.user.name, picture: req.user.picture }, jwtSecret, { expiresIn: '24h' });
-  res.redirect(`${frontendUrl}/login?token=${token}`);
-});
+router.get(
+  "/google/callback",
+  passport.authenticate("google", {
+    failureRedirect: `${frontendUrl}/login`,
+    session: false,
+  }),
+  (req, res) => {
+    const token = jwt.sign(
+      {
+        id: req.user.id,
+        email: req.user.email,
+        name: req.user.name,
+        picture: req.user.picture,
+      },
+      jwtSecret,
+      { expiresIn: "24h" },
+    );
+    res.redirect(`${frontendUrl}/login?token=${token}`);
+  },
+);
 
 // Mock Google Consent Endpoint (invoked by the Mock Strategy)
-router.get('/google/mock-consent', (req, res) => {
-  const redirectUri = req.query.redirect_uri || `${backendUrl}/api/auth/google/callback`;
-  
+router.get("/google/mock-consent", (req, res) => {
+  const redirectUri =
+    req.query.redirect_uri || `${backendUrl}/api/auth/google/callback`;
+
   const html = `
     <!DOCTYPE html>
     <html lang="en">
@@ -114,32 +137,44 @@ router.get('/google/mock-consent', (req, res) => {
 });
 
 // Mock Login Bypass for Local/Docker Dev (Extremely Useful for Hackathon Grading)
-router.get('/mock-login', async (req, res) => {
+router.get("/mock-login", async (req, res) => {
   try {
-    const mockId = 'mock-google-user-12345';
-    const email = 'boardroom.tester@example.com';
-    const name = 'Executive Boardroom Tester';
-    const picture = 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&q=80&w=120';
+    const mockId = "mock-google-user-12345";
+    const email = "boardroom.tester@example.com";
+    const name = "Executive Boardroom Tester";
+    const picture =
+      "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&q=80&w=120";
 
     // Look up or insert
-    let userRes = await pool.query('SELECT * FROM users WHERE google_id = $1', [mockId]);
+    let userRes = await pool.query("SELECT * FROM users WHERE google_id = $1", [
+      mockId,
+    ]);
     let user;
 
     if (userRes.rows.length > 0) {
       user = userRes.rows[0];
     } else {
       const insertRes = await pool.query(
-        'INSERT INTO users (google_id, email, name, picture) VALUES ($1, $2, $3, $4) RETURNING *',
-        [mockId, email, name, picture]
+        "INSERT INTO users (google_id, email, name, picture) VALUES ($1, $2, $3, $4) RETURNING *",
+        [mockId, email, name, picture],
       );
       user = insertRes.rows[0];
     }
 
-    const token = jwt.sign({ id: user.id, email: user.email, name: user.name, picture: user.picture }, jwtSecret, { expiresIn: '24h' });
+    const token = jwt.sign(
+      {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        picture: user.picture,
+      },
+      jwtSecret,
+      { expiresIn: "24h" },
+    );
     res.json({ token, user });
   } catch (err) {
-    console.error('Mock login failed:', err);
-    res.status(500).json({ error: 'Mock login failed' });
+    console.error("Mock login failed:", err);
+    res.status(500).json({ error: "Mock login failed" });
   }
 });
 
@@ -147,7 +182,7 @@ router.get('/mock-login', async (req, res) => {
 const authenticateJWT = (req, res, next) => {
   const authHeader = req.headers.authorization;
   if (authHeader) {
-    const token = authHeader.split(' ')[1];
+    const token = authHeader.split(" ")[1];
     jwt.verify(token, jwtSecret, (err, user) => {
       if (err) return res.sendStatus(403);
       req.user = user;
@@ -158,20 +193,22 @@ const authenticateJWT = (req, res, next) => {
   }
 };
 
-router.get('/me', authenticateJWT, async (req, res) => {
+router.get("/me", authenticateJWT, async (req, res) => {
   try {
-    const userRes = await pool.query('SELECT * FROM users WHERE id = $1', [req.user.id]);
+    const userRes = await pool.query("SELECT * FROM users WHERE id = $1", [
+      req.user.id,
+    ]);
     if (userRes.rows.length > 0) {
       res.json(userRes.rows[0]);
     } else {
-      res.status(404).json({ error: 'User not found' });
+      res.status(404).json({ error: "User not found" });
     }
   } catch (err) {
-    res.status(500).json({ error: 'Auth check failed' });
+    res.status(500).json({ error: "Auth check failed" });
   }
 });
 
 module.exports = {
   router,
-  authenticateJWT
+  authenticateJWT,
 };
