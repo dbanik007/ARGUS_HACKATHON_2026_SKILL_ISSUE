@@ -548,6 +548,25 @@ const runDebateAsync = async (session, roster, emitter, pool, missionBriefing = 
   const agentFlags = {};
 
   try {
+    // ── First: Store and emit User prompt/directives ────────────────────────
+    const userBriefing = missionBriefing && missionBriefing.trim() 
+      ? missionBriefing.trim() 
+      : `Initiating boardroom evaluation for tender '${session.tender_name}' with client '${session.client_name}'.`;
+    
+    const initialUserMsg = { sender: 'User', message_text: userBriefing, negotiation_round: 0 };
+    debateHistory.push(initialUserMsg);
+
+    if (pool) {
+      await pool.query(
+        'INSERT INTO debate_messages (session_id, sender, message_text, negotiation_round) VALUES ($1, $2, $3, $4)',
+        [sessionId, initialUserMsg.sender, initialUserMsg.message_text, initialUserMsg.negotiation_round]
+      ).catch(e => console.error(`DB save error (User):`, e.message));
+    }
+    
+    // Small delay to make sure client SSE listener is connected
+    await new Promise(resolve => setTimeout(resolve, 500));
+    emit('message', initialUserMsg);
+
     // ── Round 1: Initial presentations ──────────────────────────────────────
     if (roster.includes('Account Executive')) {
       await runAgent('Account Executive', 1);

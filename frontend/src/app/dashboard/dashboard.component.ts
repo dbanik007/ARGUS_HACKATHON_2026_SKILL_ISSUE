@@ -191,7 +191,7 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
     });
 
     // Load Session History
-    this.loadHistory();
+    this.loadHistory(true);
     this.loadAgentConfigs();
   }
 
@@ -249,7 +249,7 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
     } catch (err) {}
   }
 
-  loadHistory(): void {
+  loadHistory(autoRestore: boolean = false): void {
     const token = localStorage.getItem('token');
     if (!token) return;
     
@@ -257,9 +257,38 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
     this.http.get<EvaluationSession[]>(`${this.backendUrl}/api/evaluation/history`, { headers }).subscribe({
       next: (data) => {
         this.historyList = data;
+        if (autoRestore && this.historyList.length > 0) {
+          const latest = this.historyList[0];
+          if (latest.final_verdict === 'PENDING') {
+            this.restorePendingSession(latest);
+          }
+        }
       },
       error: (err) => {
         console.error('Failed to load history:', err);
+      }
+    });
+  }
+
+  restorePendingSession(session: EvaluationSession): void {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    this.evaluating = true;
+    this.activeSession = { ...session, final_verdict: 'EVALUATING' };
+    this.verdictCollapsed = true;
+
+    const headers = new HttpHeaders().set('Authorization', `Bearer ${token}`);
+    this.http.get<any>(`${this.backendUrl}/api/evaluation/session/${session.id}`, { headers }).subscribe({
+      next: (data) => {
+        if (this.activeSession && this.activeSession.id === session.id) {
+          this.debateMessages = data.messages;
+          this.setupSSEStream(session.id);
+        }
+      },
+      error: (err) => {
+        this.evaluating = false;
+        console.error('Failed to restore pending session:', err);
       }
     });
   }
@@ -388,6 +417,8 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
 
   getAgentAvatar(sender: string): string {
     switch(sender) {
+      case 'User': return 'account_circle';
+      case 'Swarm': return 'sensors';
       case 'Account Executive': return 'person';
       case 'Resource': return 'engineering';
       case 'Technical Architect': return 'architecture';
@@ -414,10 +445,10 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
   }
 
   getAgentStances(): Array<{agent: string, status: 'approved' | 'flagged' | 'conditional'}> {
-    // Build list from messages (one entry per agent, Board excluded)
+    // Build list from messages (one entry per agent, Board and User excluded)
     const agentLatest = new Map<string, {text: string, round: number}>();
     for (const msg of this.debateMessages) {
-      if (msg.sender !== 'Board of Directors') {
+      if (msg.sender !== 'Board of Directors' && msg.sender !== 'User') {
         agentLatest.set(msg.sender, { text: msg.message_text, round: msg.negotiation_round });
       }
     }
@@ -540,6 +571,8 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
 
   getAgentColorClass(sender: string): string {
     switch(sender) {
+      case 'User': return 'border-primary text-primary bg-primary/10';
+      case 'Swarm': return 'border-tertiary text-tertiary bg-tertiary/10';
       case 'Account Executive': return 'border-indigo-500 text-indigo-400 bg-indigo-500/10';
       case 'Resource': return 'border-blue-500 text-blue-400 bg-blue-500/10';
       case 'Technical Architect': return 'border-violet-500 text-violet-400 bg-violet-500/10';
@@ -550,6 +583,122 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
       case 'Board of Directors': return 'border-emerald-500 text-emerald-400 bg-emerald-500/10';
       default: return 'border-primary text-primary bg-primary/10';
     }
+  }
+
+  guessCurrentTypingAgent(): string {
+    if (this.currentTypingAgent) return this.currentTypingAgent;
+    if (!this.activeSession || !this.activeSession.roster) return 'Swarm';
+
+    const roster = this.activeSession.roster;
+    const messages = this.debateMessages;
+
+    // Filter out 'User' messages
+    const agentMessages = messages.filter(m => m.sender !== 'User');
+
+    // Round 1 order
+    const round1Order = [
+      'Account Executive',
+      'Resource',
+      'Technical Architect',
+      'Risk Analyst',
+      'Operations Manager',
+      'Legal',
+      'Financial'
+    ].filter(a => roster.includes(a));
+
+    // Check which Round 1 agents haven't spoken yet
+    for (const agent of round1Order) {
+      const hasSpoken = agentMessages.some(m => m.sender === agent && m.negotiation_round === 1);
+      if (!hasSpoken) {
+        return agent;
+      }
+    }
+
+    // Round 2 check
+    // Check who flagged in Round 1
+    const resourceMsg = agentMessages.find(m => m.sender === 'Resource' && m.negotiation_round === 1);
+    const resourceFlagged = resourceMsg && (
+      resourceMsg.message_text.toLowerCase().includes('staffing gap') ||
+      resourceMsg.message_text.toLowerCase().includes('none available') ||
+      resourceMsg.message_text.toLowerCase().includes('no available') ||
+      resourceMsg.message_text.toLowerCase().includes('shortfall') ||
+      resourceMsg.message_text.toLowerCase().includes('cannot staff') ||
+      resourceMsg.message_text.toLowerCase().includes('no developers') ||
+      resourceMsg.message_text.toLowerCase().includes('0 developers') ||
+      resourceMsg.message_text.toLowerCase().includes('not enough') ||
+      resourceMsg.message_text.toLowerCase().includes('insufficient') ||
+      resourceMsg.message_text.toLowerCase().includes('resolve before')
+    );
+
+    const techMsg = agentMessages.find(m => m.sender === 'Technical Architect' && m.negotiation_round === 1);
+    const techFlagged = techMsg && (
+      techMsg.message_text.toLowerCase().includes('not feasible') ||
+      techMsg.message_text.toLowerCase().includes('unrealistic') ||
+      techMsg.message_text.toLowerCase().includes('impossible') ||
+      techMsg.message_text.toLowerCase().includes('cannot support') ||
+      techMsg.message_text.toLowerCase().includes('cannot deliver')
+    );
+
+    const riskMsg = agentMessages.find(m => m.sender === 'Risk Analyst' && m.negotiation_round === 1);
+    const riskFlagged = riskMsg && (
+      riskMsg.message_text.toLowerCase().includes('high') ||
+      riskMsg.message_text.toLowerCase().includes('critical') ||
+      riskMsg.message_text.toLowerCase().includes('unacceptable')
+    );
+
+    const opsMsg = agentMessages.find(m => m.sender === 'Operations Manager' && m.negotiation_round === 1);
+    const opsConcern = opsMsg && (
+      opsMsg.message_text.toLowerCase().includes('cannot execute') ||
+      opsMsg.message_text.toLowerCase().includes('execution gap') ||
+      opsMsg.message_text.toLowerCase().includes('not executable') ||
+      opsMsg.message_text.toLowerCase().includes('operationally unsound')
+    );
+
+    const anyFlagged = resourceFlagged || techFlagged || riskFlagged || opsConcern;
+
+    if (anyFlagged) {
+      // AE speaks in round 2
+      const aeRound2 = agentMessages.some(m => m.sender === 'Account Executive' && m.negotiation_round === 2);
+      if (!aeRound2 && roster.includes('Account Executive')) {
+        return 'Account Executive';
+      }
+
+      // Financial speaks in round 2 if in roster and flagged
+      const financeMsg = agentMessages.find(m => m.sender === 'Financial' && m.negotiation_round === 1);
+      const financeFlagged = financeMsg && (
+        financeMsg.message_text.toLowerCase().includes('margin compression') ||
+        financeMsg.message_text.toLowerCase().includes('unviable') ||
+        financeMsg.message_text.toLowerCase().includes('unacceptable margin') ||
+        financeMsg.message_text.toLowerCase().includes('negative return') ||
+        financeMsg.message_text.toLowerCase().includes('under budget')
+      );
+      if (financeFlagged && roster.includes('Financial')) {
+        const finRound2 = agentMessages.some(m => m.sender === 'Financial' && m.negotiation_round === 2);
+        if (!finRound2) return 'Financial';
+      }
+
+      // Legal speaks in round 2 if in roster and flagged
+      const legalMsg = agentMessages.find(m => m.sender === 'Legal' && m.negotiation_round === 1);
+      const legalFlagged = legalMsg && (
+        legalMsg.message_text.toLowerCase().includes('violation') ||
+        legalMsg.message_text.toLowerCase().includes('non-compliant') ||
+        legalMsg.message_text.toLowerCase().includes('breach') ||
+        legalMsg.message_text.toLowerCase().includes('unresolved lawsuit') ||
+        legalMsg.message_text.toLowerCase().includes('legal risk')
+      );
+      if (legalFlagged && roster.includes('Legal')) {
+        const legalRound2 = agentMessages.some(m => m.sender === 'Legal' && m.negotiation_round === 2);
+        if (!legalRound2) return 'Legal';
+      }
+    }
+
+    // Finally Board of Directors
+    const boardSpoken = agentMessages.some(m => m.sender === 'Board of Directors');
+    if (!boardSpoken) {
+      return 'Board of Directors';
+    }
+
+    return 'Swarm';
   }
 
   formatMoney(val: any): string {
