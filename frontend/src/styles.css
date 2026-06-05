@@ -157,3 +157,22 @@ body {
   pointer-events: none;
   z-index: 50;
 }
+
+/* Validation styling */
+.border-error {
+  border-color: #ff4a6b !important;
+  box-shadow: 0 0 0 1px #ff4a6b !important;
+}
+
+.text-error {
+  color: #ff4a6b !important;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animation-fade-in {
+  animation: fadeIn 0.2s ease-out forwards;
+}

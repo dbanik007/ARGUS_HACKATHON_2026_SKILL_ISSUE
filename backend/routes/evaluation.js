@@ -14,8 +14,52 @@ debateEmitter.setMaxListeners(200);
 router.post('/start', authenticateJWT, async (req, res) => {
   const { tenderName, clientName, budget, timelineMonths, industry, roster } = req.body;
 
-  if (!tenderName || !clientName || !budget || !timelineMonths || !industry || !roster) {
-    return res.status(400).json({ error: 'Missing required evaluation parameters.' });
+  const trimmedTender = typeof tenderName === 'string' ? tenderName.trim() : '';
+  const trimmedClient = typeof clientName === 'string' ? clientName.trim() : '';
+
+  if (!trimmedTender) {
+    return res.status(400).json({ error: 'Tender / Project Name is required.' });
+  }
+  if (trimmedTender.length < 3) {
+    return res.status(400).json({ error: 'Tender / Project Name must be at least 3 characters.' });
+  }
+  if (trimmedTender.length > 100) {
+    return res.status(400).json({ error: 'Tender / Project Name cannot exceed 100 characters.' });
+  }
+
+  if (!trimmedClient) {
+    return res.status(400).json({ error: 'Client Name is required.' });
+  }
+  if (trimmedClient.length < 3) {
+    return res.status(400).json({ error: 'Client Name must be at least 3 characters.' });
+  }
+  if (trimmedClient.length > 100) {
+    return res.status(400).json({ error: 'Client Name cannot exceed 100 characters.' });
+  }
+
+  if (budget === undefined || budget === null || budget === '') {
+    return res.status(400).json({ error: 'Budget is required.' });
+  }
+  const budgetNum = Number(budget);
+  if (isNaN(budgetNum) || budgetNum <= 0) {
+    return res.status(400).json({ error: 'Budget must be a positive number greater than 0.' });
+  }
+
+  if (timelineMonths === undefined || timelineMonths === null || timelineMonths === '') {
+    return res.status(400).json({ error: 'Timeline is required.' });
+  }
+  const timelineNum = Number(timelineMonths);
+  if (isNaN(timelineNum) || !Number.isInteger(timelineNum) || timelineNum <= 0) {
+    return res.status(400).json({ error: 'Timeline must be a positive integer representing months.' });
+  }
+
+  const validIndustries = ['Healthcare', 'Financial Services', 'E-Commerce', 'Cybersecurity', 'Logistics'];
+  if (!validIndustries.includes(industry)) {
+    return res.status(400).json({ error: 'Invalid industry vertical selected.' });
+  }
+
+  if (!Array.isArray(roster) || roster.length === 0) {
+    return res.status(400).json({ error: 'Roster must select at least one agent.' });
   }
 
   try {

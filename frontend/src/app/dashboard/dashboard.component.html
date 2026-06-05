@@ -60,27 +60,35 @@
 
         <div class="flex flex-col gap-xs">
           <label class="font-label-md text-[13px] text-on-surface-variant">Tender / Project Name</label>
-          <input [(ngModel)]="tenderName" class="glass-input rounded-lg p-sm font-body-md text-body-md" placeholder="e.g. Next-Gen Medical Telemetry Suite">
+          <input [(ngModel)]="tenderName" (input)="validateField('tenderName')" class="glass-input rounded-lg p-sm font-body-md text-body-md" [class.border-error]="errors['tenderName']" placeholder="e.g. Next-Gen Medical Telemetry Suite">
+          <span *ngIf="errors['tenderName']" class="text-error text-caption mt-xs animation-fade-in block">{{ errors['tenderName'] }}</span>
         </div>
 
         <div class="flex flex-col gap-xs">
           <label class="font-label-md text-[13px] text-on-surface-variant">Client Name</label>
-          <input [(ngModel)]="clientName" class="glass-input rounded-lg p-sm font-body-md text-body-md" placeholder="e.g. St. Jude Clinical">
+          <input [(ngModel)]="clientName" (input)="validateField('clientName')" class="glass-input rounded-lg p-sm font-body-md text-body-md" [class.border-error]="errors['clientName']" placeholder="e.g. St. Jude Clinical">
+          <span *ngIf="errors['clientName']" class="text-error text-caption mt-xs animation-fade-in block">{{ errors['clientName'] }}</span>
         </div>
 
         <div class="flex gap-sm">
           <div class="flex flex-col gap-xs flex-1">
             <label class="font-label-md text-[13px] text-on-surface-variant">Budget ($)</label>
-            <div class="relative">
-              <span class="absolute left-sm top-1/2 -translate-y-1/2 text-on-surface-variant material-symbols-outlined text-[18px]">attach_money</span>
-              <input [(ngModel)]="budget" class="glass-input rounded-lg p-sm pl-10 w-full font-body-md text-body-md" type="number" placeholder="2,500,000">
+            <div class="relative flex flex-col">
+              <div class="relative w-full">
+                <span class="absolute left-sm top-1/2 -translate-y-1/2 text-on-surface-variant material-symbols-outlined text-[18px]">attach_money</span>
+                <input [(ngModel)]="budget" (input)="validateField('budget')" class="glass-input rounded-lg p-sm pl-10 w-full font-body-md text-body-md" [class.border-error]="errors['budget']" type="number" placeholder="2,500,000">
+              </div>
+              <span *ngIf="errors['budget']" class="text-error text-caption mt-xs animation-fade-in block">{{ errors['budget'] }}</span>
             </div>
           </div>
           <div class="flex flex-col gap-xs flex-1">
             <label class="font-label-md text-[13px] text-on-surface-variant">Timeline (Months)</label>
-            <div class="relative">
-              <span class="absolute left-sm top-1/2 -translate-y-1/2 text-on-surface-variant material-symbols-outlined text-[18px]">calendar_month</span>
-              <input [(ngModel)]="timelineMonths" class="glass-input rounded-lg p-sm pl-10 w-full font-body-md text-body-md" type="number" placeholder="18">
+            <div class="relative flex flex-col">
+              <div class="relative w-full">
+                <span class="absolute left-sm top-1/2 -translate-y-1/2 text-on-surface-variant material-symbols-outlined text-[18px]">calendar_month</span>
+                <input [(ngModel)]="timelineMonths" (input)="validateField('timelineMonths')" class="glass-input rounded-lg p-sm pl-10 w-full font-body-md text-body-md" [class.border-error]="errors['timelineMonths']" type="number" placeholder="18">
+              </div>
+              <span *ngIf="errors['timelineMonths']" class="text-error text-caption mt-xs animation-fade-in block">{{ errors['timelineMonths'] }}</span>
             </div>
           </div>
         </div>
@@ -104,12 +112,12 @@
             <span class="material-symbols-outlined text-secondary">group</span>
             <h3 class="font-headline-md text-body-lg font-semibold text-on-surface">Agent Roster</h3>
           </div>
-          <span class="font-caption text-caption px-2 py-1 bg-surface-variant rounded-md text-on-surface-variant">4 Agent Debate</span>
+          <span class="font-caption text-caption px-2 py-1 bg-surface-variant rounded-md text-on-surface-variant">7 Agent Debate</span>
         </div>
 
         <div class="flex flex-col gap-xs">
           <!-- AE: Required/Always Checked -->
-          <div class="flex items-center justify-between p-sm rounded-lg hover:bg-white/[0.02] transition-colors">
+          <div class="flex items-center justify-between p-sm rounded-lg hover:bg-white/2 transition-colors">
             <div class="flex items-center gap-sm">
               <div class="w-2 h-2 rounded-full bg-indigo-500 shadow-[0_0_8px_rgba(99,102,241,0.8)]"></div>
               <span class="font-label-md text-label-md text-on-surface">Account Executive (Sales)</span>
@@ -117,39 +125,66 @@
             <span class="text-[10px] text-indigo-400 font-bold uppercase tracking-wider bg-indigo-500/10 px-2 py-0.5 rounded border border-indigo-500/20">Required</span>
           </div>
 
+          <!-- Technical Architect: Always present -->
+          <div class="flex items-center justify-between p-sm rounded-lg hover:bg-white/2 transition-colors">
+            <div class="flex items-center gap-sm">
+              <div class="w-2 h-2 rounded-full bg-violet-500 shadow-[0_0_8px_rgba(139,92,246,0.8)]"></div>
+              <span class="font-label-md text-label-md text-on-surface">Technical Architect</span>
+            </div>
+            <span class="text-[10px] text-violet-400 font-bold uppercase tracking-wider bg-violet-500/10 px-2 py-0.5 rounded border border-violet-500/20">Always</span>
+          </div>
+
+          <!-- Risk Analyst: Always present -->
+          <div class="flex items-center justify-between p-sm rounded-lg hover:bg-white/2 transition-colors">
+            <div class="flex items-center gap-sm">
+              <div class="w-2 h-2 rounded-full bg-orange-500 shadow-[0_0_8px_rgba(249,115,22,0.8)]"></div>
+              <span class="font-label-md text-label-md text-on-surface">Risk Analyst</span>
+            </div>
+            <span class="text-[10px] text-orange-400 font-bold uppercase tracking-wider bg-orange-500/10 px-2 py-0.5 rounded border border-orange-500/20">Always</span>
+          </div>
+
+          <!-- Operations Manager: Always present -->
+          <div class="flex items-center justify-between p-sm rounded-lg hover:bg-white/2 transition-colors">
+            <div class="flex items-center gap-sm">
+              <div class="w-2 h-2 rounded-full bg-teal-500 shadow-[0_0_8px_rgba(20,184,166,0.8)]"></div>
+              <span class="font-label-md text-label-md text-on-surface">Operations Manager</span>
+            </div>
+            <span class="text-[10px] text-teal-400 font-bold uppercase tracking-wider bg-teal-500/10 px-2 py-0.5 rounded border border-teal-500/20">Always</span>
+          </div>
+
           <!-- Legal & Compliance Toggle -->
-          <div class="flex items-center justify-between p-sm rounded-lg hover:bg-white/[0.02] transition-colors">
+          <div class="flex items-center justify-between p-sm rounded-lg hover:bg-white/2 transition-colors">
             <div class="flex items-center gap-sm">
               <div class="w-2 h-2 rounded-full bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.8)]"></div>
               <span class="font-label-md text-label-md text-on-surface">Legal & Compliance</span>
             </div>
             <label class="relative inline-flex items-center cursor-pointer">
               <input type="checkbox" [(ngModel)]="agentsRoster.legal" [disabled]="evaluating" class="sr-only peer">
-              <div class="w-9 h-5 bg-surface-container-highest peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-rose-500 shadow-[inset_0_0_5px_rgba(0,0,0,0.5)] transition-all duration-300"></div>
+              <div class="w-9 h-5 bg-surface-container-highest peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-rose-500 shadow-[inset_0_0_5px_rgba(0,0,0,0.5)] transition-all duration-300"></div>
             </label>
           </div>
 
           <!-- Resource Toggle -->
-          <div class="flex items-center justify-between p-sm rounded-lg hover:bg-white/[0.02] transition-colors">
+          <div class="flex items-center justify-between p-sm rounded-lg hover:bg-white/2 transition-colors">
             <div class="flex items-center gap-sm">
               <div class="w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.8)]"></div>
               <span class="font-label-md text-label-md text-on-surface">Resource Planner</span>
             </div>
             <label class="relative inline-flex items-center cursor-pointer">
               <input type="checkbox" [(ngModel)]="agentsRoster.resource" [disabled]="evaluating" class="sr-only peer">
-              <div class="w-9 h-5 bg-surface-container-highest peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-500 shadow-[inset_0_0_5px_rgba(0,0,0,0.5)] transition-all duration-300"></div>
+              <div class="w-9 h-5 bg-surface-container-highest peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-500 shadow-[inset_0_0_5px_rgba(0,0,0,0.5)] transition-all duration-300"></div>
             </label>
           </div>
 
           <!-- Finance Toggle -->
-          <div class="flex items-center justify-between p-sm rounded-lg hover:bg-white/[0.02] transition-colors">
+          <div class="flex items-center justify-between p-sm rounded-lg hover:bg-white/2 transition-colors">
             <div class="flex items-center gap-sm">
               <div class="w-2 h-2 rounded-full bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.8)]"></div>
               <span class="font-label-md text-label-md text-on-surface">Financial Analyst</span>
             </div>
             <label class="relative inline-flex items-center cursor-pointer">
               <input type="checkbox" [(ngModel)]="agentsRoster.finance" [disabled]="evaluating" class="sr-only peer">
-              <div class="w-9 h-5 bg-surface-container-highest peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-500 shadow-[inset_0_0_5px_rgba(0,0,0,0.5)] transition-all duration-300"></div>
+              <div class="w-9 h-5 bg-surface-container-highest peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-500 shadow-[inset_0_0_5px_rgba(0,0,0,0.5)] transition-all duration-300"></div>
             </label>
           </div>
         </div>
@@ -170,7 +205,7 @@
     <!-- CENTER: Swarm Debate Log Feed (45% width) -->
     <section class="w-[45%] h-full flex flex-col border-r border-white/10 relative overflow-hidden bg-mesh shrink-0">
       <!-- Header for log feed -->
-      <div class="h-[60px] border-b border-white/10 flex items-center px-gutter justify-between bg-surface-container/30 backdrop-blur-sm z-10 shrink-0">
+      <div class="h-15 border-b border-white/10 flex items-center px-gutter justify-between bg-surface-container/30 backdrop-blur-sm z-10 shrink-0">
         <div class="flex items-center gap-sm">
           <span class="material-symbols-outlined text-tertiary" [class.animate-pulse]="evaluating">sensors</span>
           <h2 class="font-headline-md text-body-lg font-semibold text-on-surface">Live Boardroom Trace</h2>
@@ -183,18 +218,18 @@
 
       <!-- Messages Feed list container -->
       <div #chatScrollContainer class="flex-1 overflow-y-auto p-gutter flex flex-col gap-md relative">
-        <div class="absolute inset-0 pointer-events-none bg-[linear-gradient(to_right,#ffffff03_1px,transparent_1px)] bg-[size:40px_100%] opacity-20"></div>
+        <div class="absolute inset-0 pointer-events-none bg-[linear-gradient(to_right,#ffffff03_1px,transparent_1px)] bg-size-[40px_100%] opacity-20"></div>
         
         <!-- Empty State Prompt -->
-        <div *ngIf="debateMessages.length === 0 && !currentTypingAgent" class="m-auto flex flex-col items-center gap-sm opacity-40 max-w-[285px] text-center">
+        <div *ngIf="debateMessages.length === 0 && !currentTypingAgent" class="m-auto flex flex-col items-center gap-sm opacity-40 max-w-71.25 text-center">
           <span class="material-symbols-outlined text-4xl text-primary">groups</span>
           <p class="text-caption">Configure parameters and hit "Initiate Evaluation" to start the multi-agent deliberation swarm.</p>
         </div>
 
         <!-- Chat messages loop -->
-        <div *ngFor="let msg of debateMessages" class="glass-panel p-sm rounded-lg flex gap-sm group hover:bg-white/[0.05] hover:scale-[1.01] transition-all duration-300 relative">
+        <div *ngFor="let msg of debateMessages" class="glass-panel p-sm rounded-lg flex gap-sm group hover:bg-white/5 hover:scale-[1.01] transition-all duration-300 relative">
           <!-- Left border indicator -->
-          <div class="absolute left-0 top-0 bottom-0 w-[3px] rounded-l-lg bg-primary opacity-0 group-hover:opacity-100 transition-opacity"></div>
+          <div class="absolute left-0 top-0 bottom-0 w-0.75 rounded-l-lg bg-primary opacity-0 group-hover:opacity-100 transition-opacity"></div>
           
           <!-- Agent Avatar icon -->
           <div [class]="'w-8 h-8 rounded flex items-center justify-center shrink-0 border ' + getAgentColorClass(msg.sender)">
@@ -214,7 +249,7 @@
         </div>
 
         <!-- Live Typing Indicator -->
-        <div *ngIf="currentTypingAgent" class="glass-panel p-sm rounded-lg flex gap-sm relative opacity-85 animate-pulse bg-white/[0.02]">
+        <div *ngIf="currentTypingAgent" class="glass-panel p-sm rounded-lg flex gap-sm relative opacity-85 animate-pulse bg-white/2">
           <div [class]="'w-8 h-8 rounded flex items-center justify-center shrink-0 border ' + getAgentColorClass(currentTypingAgent)">
             <span class="material-symbols-outlined text-[18px] animate-spin">{{ getAgentAvatar(currentTypingAgent) }}</span>
           </div>

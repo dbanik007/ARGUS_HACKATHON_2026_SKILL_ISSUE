@@ -43,6 +43,9 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
   timelineMonths: number = 6;
   industry: string = 'Healthcare';
   
+  // Validation errors
+  errors: { [key: string]: string } = {};
+
   // Agent Roster Options
   agentsRoster = {
     sales: true, // Account Executive: Required
@@ -50,6 +53,64 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
     legal: true,
     finance: true
   };
+
+  validateField(field: string): void {
+    if (field === 'tenderName') {
+      const trimmed = (this.tenderName || '').trim();
+      if (!trimmed) {
+        this.errors['tenderName'] = 'Tender / Project Name is required.';
+      } else if (trimmed.length < 3) {
+        this.errors['tenderName'] = 'Tender Name must be at least 3 characters.';
+      } else if (trimmed.length > 100) {
+        this.errors['tenderName'] = 'Tender Name cannot exceed 100 characters.';
+      } else {
+        delete this.errors['tenderName'];
+      }
+    }
+
+    if (field === 'clientName') {
+      const trimmed = (this.clientName || '').trim();
+      if (!trimmed) {
+        this.errors['clientName'] = 'Client Name is required.';
+      } else if (trimmed.length < 3) {
+        this.errors['clientName'] = 'Client Name must be at least 3 characters.';
+      } else if (trimmed.length > 100) {
+        this.errors['clientName'] = 'Client Name cannot exceed 100 characters.';
+      } else {
+        delete this.errors['clientName'];
+      }
+    }
+
+    if (field === 'budget') {
+      if (this.budget === undefined || this.budget === null || (this.budget as any) === '') {
+        this.errors['budget'] = 'Budget is required.';
+      } else if (this.budget <= 0) {
+        this.errors['budget'] = 'Budget must be greater than 0.';
+      } else {
+        delete this.errors['budget'];
+      }
+    }
+
+    if (field === 'timelineMonths') {
+      if (this.timelineMonths === undefined || this.timelineMonths === null || (this.timelineMonths as any) === '') {
+        this.errors['timelineMonths'] = 'Timeline is required.';
+      } else if (this.timelineMonths <= 0) {
+        this.errors['timelineMonths'] = 'Timeline must be at least 1 month.';
+      } else if (!Number.isInteger(this.timelineMonths)) {
+        this.errors['timelineMonths'] = 'Timeline must be a whole number of months.';
+      } else {
+        delete this.errors['timelineMonths'];
+      }
+    }
+  }
+
+  validateAll(): boolean {
+    this.validateField('tenderName');
+    this.validateField('clientName');
+    this.validateField('budget');
+    this.validateField('timelineMonths');
+    return Object.keys(this.errors).length === 0;
+  }
 
   // Evaluation States
   activeSession: EvaluationSession | null = null;
@@ -120,6 +181,10 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
 
   initiateEvaluation(): void {
     if (this.evaluating) return;
+
+    if (!this.validateAll()) {
+      return;
+    }
     
     const token = localStorage.getItem('token');
     if (!token) return;
@@ -147,7 +212,7 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
     };
 
     const headers = new HttpHeaders().set('Authorization', `Bearer ${token}`);
-    this.http.post<EvaluationSession>(`${`${this.backendUrl}/api/evaluation/start`}`, body, { headers }).subscribe({
+    this.http.post<EvaluationSession>(`${this.backendUrl}/api/evaluation/start`, body, { headers }).subscribe({
       next: (session) => {
         this.activeSession = { ...session, final_verdict: 'EVALUATING' };
         this.setupSSEStream(session.id);
@@ -155,7 +220,8 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
       error: (err) => {
         this.evaluating = false;
         console.error('Failed to start evaluation:', err);
-        alert('Could not start evaluation. Please verify database connection.');
+        const errMsg = err.error?.error || 'Could not start evaluation. Please verify database connection.';
+        alert(errMsg);
       }
     });
   }
@@ -231,6 +297,9 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
     switch(sender) {
       case 'Account Executive': return 'person';
       case 'Resource': return 'engineering';
+      case 'Technical Architect': return 'architecture';
+      case 'Risk Analyst': return 'shield';
+      case 'Operations Manager': return 'settings_suggest';
       case 'Legal': return 'gavel';
       case 'Financial': return 'payments';
       case 'Board of Directors': return 'corporate_fare';
@@ -242,6 +311,9 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
     switch(sender) {
       case 'Account Executive': return 'border-indigo-500 text-indigo-400 bg-indigo-500/10';
       case 'Resource': return 'border-blue-500 text-blue-400 bg-blue-500/10';
+      case 'Technical Architect': return 'border-violet-500 text-violet-400 bg-violet-500/10';
+      case 'Risk Analyst': return 'border-orange-500 text-orange-400 bg-orange-500/10';
+      case 'Operations Manager': return 'border-teal-500 text-teal-400 bg-teal-500/10';
       case 'Legal': return 'border-rose-500 text-rose-400 bg-rose-500/10';
       case 'Financial': return 'border-amber-500 text-amber-400 bg-amber-500/10';
       case 'Board of Directors': return 'border-emerald-500 text-emerald-400 bg-emerald-500/10';
