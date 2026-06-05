@@ -117,7 +117,9 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
   debateMessages: DebateMessage[] = [];
   currentTypingAgent: string | null = null;
   evaluating: boolean = false;
-  activeTab: 'console' | 'history' = 'console';
+  activeTab: 'console' | 'history' | 'training' = 'console';
+  agentConfigs: any = null;
+  isSidebarCollapsed: boolean = false;
   missionBriefing: string = '';
   verdictCollapsed: boolean = true;
 
@@ -152,6 +154,49 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
 
     // Load Session History
     this.loadHistory();
+    this.loadAgentConfigs();
+  }
+
+  loadAgentConfigs(): void {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    const headers = new HttpHeaders().set('Authorization', `Bearer ${token}`);
+    this.http.get<any>(`${this.backendUrl}/api/agents/config`, { headers }).subscribe({
+      next: (data) => {
+        this.agentConfigs = data;
+      },
+      error: (err) => {
+        console.error('Failed to load agent configs:', err);
+      }
+    });
+  }
+
+  saveAgentConfigs(): void {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    const headers = new HttpHeaders().set('Authorization', `Bearer ${token}`);
+    this.http.put<any>(`${this.backendUrl}/api/agents/config`, this.agentConfigs, { headers }).subscribe({
+      next: (data) => {
+        this.agentConfigs = data.configs;
+        alert('Configuration deployed successfully!');
+      },
+      error: (err) => {
+        console.error('Failed to save agent configs:', err);
+      }
+    });
+  }
+
+  resetAgentConfigs(): void {
+    if (confirm('Reset to defaults?')) {
+      this.agentConfigs = {
+        'Account Executive': { slider1: 65, slider2: 40, customDirectives: '' },
+        'Legal': { slider1: 15, slider2: 5, customDirectives: '' },
+        'Resource': { slider1: 50, slider2: 75, customDirectives: '' },
+        'Financial': { slider1: 30, slider2: 60, customDirectives: '' },
+        'Board of Directors': { slider1: 85, slider2: 90, customDirectives: '' }
+      };
+      this.saveAgentConfigs();
+    }
   }
 
   ngAfterViewChecked(): void {
