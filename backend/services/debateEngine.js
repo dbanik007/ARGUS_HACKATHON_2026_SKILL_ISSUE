@@ -173,9 +173,9 @@ Flag any execution gaps or process risks that could cause project delays. Respon
 Identify regulatory obligations: HIPAA for Healthcare, PCI-DSS for Finance, GDPR, SOC2, contractual risks.
 Explicitly flag compliance gaps that could block or delay the project. Respond in 2-4 concise sentences.`,
 
-  'Financial': `You are the CFO in a corporate boardroom tender evaluation.
-Evaluate budget viability, profit margins, and financial risk. Standard dev cost: $12,000–15,000/dev/month.
-If budget cannot cover staffing plus margin, say so clearly. Respond in 2-4 concise sentences.`,
+  'Financial': `You are the CFO and the Account Executive (Sales Representative) in a corporate boardroom tender evaluation.
+Combine both roles: evaluate budget viability, profit margins, and financial risk (as CFO), but also act as a sales advocate (as Account Executive) to find ways to make the project viable (e.g., proposing creative commercial models, revised budgets, or phased terms to secure a GO).
+Standard dev cost: $12,000–15,000/dev/month. If budget is tight, propose how to adjust scope or pricing to achieve a positive margin. Respond in 2-4 concise sentences.`,
 
   'Board of Directors': `You are the Chairman of the Board of Directors delivering the FINAL binding verdict.
 Review every agent's position and issue a clear, authoritative decision.
@@ -189,7 +189,7 @@ Respond in 3-5 sentences, then the verdict tag.`
 
 // ─── Smart fallback responses (context-aware, used when Gemini quota is exceeded) ─
 
-const buildFallback = (agentName, session, employees, debateHistory, searchResults = []) => {
+const buildFallback = (agentName, session, roster, employees, debateHistory, searchResults = []) => {
   const budget = Number(session.budget);
   const months = parseInt(session.timeline_months);
   const industry = (session.industry || '').toLowerCase();
@@ -251,13 +251,13 @@ const buildFallback = (agentName, session, employees, debateHistory, searchResul
       1: availableDevs.length >= neededDevs
         ? `Bench review complete for "${project}" (${session.industry} vertical, ${months}-month window). I recommend the following ${neededDevs}-person team: ${nomineeNames}. ${isHealthcare ? `${hipaaDevs.length} HIPAA-certified developers are included, satisfying compliance staffing requirements.` : 'Domain alignment and experience levels are confirmed.'} ${nominees.some(e => e.leaveRisk) ? `Note: one or more nominees have leave windows exceeding 2 weeks during the project — backup coverage should be planned.` : 'No disruptive leave conflicts identified within this timeline.'}`
         : `Bench review for "${project}" reveals a staffing gap. We need ${neededDevs} developers but only ${availableDevs.length} are fully available. Best available candidates: ${nominees.length > 0 ? nomineeNames : 'none cleared'}. I recommend extending the timeline to ${Math.ceil(months * 1.3)} months or sub-contracting ${neededDevs - availableDevs.length} role(s). This must be resolved before we commit.`,
-      2: `Following the Account Executive's revised phased proposal, I've re-examined staffing under a reduced Phase 1 team of ${Math.max(2, neededDevs - 1)}. With current bench capacity and the adjusted scope, we can proceed. Leave impacts are manageable within a phased structure. I'm prepared to approve staffing for the revised plan.`
+      2: `Following the ${roster.includes('Account Executive') ? 'Account Executive' : 'Financial Analyst'}'s revised phased proposal, I've re-examined staffing under a reduced Phase 1 team of ${Math.max(2, neededDevs - 1)}. With current bench capacity and the adjusted scope, we can proceed. Leave impacts are manageable within a phased structure. I'm prepared to approve staffing for the revised plan.`
     },
     'Technical Architect': {
       1: viable
         ? `Technical review of "${project}" is complete. The proposed team brings relevant experience — ${nominees.length > 0 ? `${nominees[0].name} (${nominees[0].years_experience} yrs) can anchor architectural decisions` : 'a senior technical lead is available'}. The ${months}-month timeline is achievable with a structured sprint cadence; I recommend a 2-week discovery sprint upfront. ${nominees.some(e => e.leaveRisk) ? 'A leave coverage plan must be defined for staff with mid-project absences.' : 'No continuity risks from planned absences.'} Technical risk: LOW.`
         : `"${project}" raises delivery concerns. The ${months}-month window is aggressive for a project of this complexity, and ${neededDevs > availableDevs.length ? 'bench capacity is insufficient to staff it correctly' : 'experience levels on the proposed team may not sustain architecture ownership at this pace'}. I estimate a realistic timeline of ${Math.ceil(months * 1.3)}–${Math.ceil(months * 1.5)} months. I'm flagging this as HIGH delivery risk at current parameters.`,
-      2: `Under the Account Executive's phased model, technical risk drops significantly. Phase 1 as a focused MVP is architecturally sound — core modules first, integrations deferred. I can approve the revised structure provided a formal architecture checkpoint occurs at Phase 1 close and leave coverage is documented for key resources.`
+      2: `Under the ${roster.includes('Account Executive') ? "Account Executive's" : "Financial Analyst's"} phased model, technical risk drops significantly. Phase 1 as a focused MVP is architecturally sound — core modules first, integrations deferred. I can approve the revised structure provided a formal architecture checkpoint occurs at Phase 1 close and leave coverage is documented for key resources.`
     },
     'Legal': {
       1: hasNegativeReputation
@@ -268,20 +268,20 @@ const buildFallback = (agentName, session, employees, debateHistory, searchResul
         ? `"${project}" triggers PCI-DSS Level 1 and SOC 2 Type II obligations as a Financial Services engagement. All infrastructure must be certified and all code subject to independent security audits before production deployment. I recommend building compliance costs (~$15,000) into the contract and including a liability cap clause. Legal can approve subject to these contractual conditions.`
         : `Legal review of "${project}" is complete. Standard commercial IP terms apply — no elevated regulatory exposure detected. I recommend including a robust change-order process, IP ownership clauses, and a data-processing addendum. No compliance blockers identified. Cleared for GO from a legal standpoint.`,
       2: hasNegativeReputation
-        ? `While the Account Executive has proposed revised terms, the reputational risk regarding ${client}'s legal dispute ("${negativeResults[0].title}") remains unresolved. Legal will only approve this tender on the condition of a formal indemnity clause protecting us against any third-party liability and a full escrow payment structure. Until then, my stance remains Conditional.`
-        : `The Account Executive's revised proposal adequately addresses my primary concerns. Subject to the following conditions: (1) BAA signed before data ingestion, (2) all certified resources formally assigned in the SOW, and (3) a compliance audit milestone included in the delivery plan — Legal will withdraw its objection and approve the revised engagement.`
+        ? `While ${roster.includes('Account Executive') ? 'the Account Executive' : 'the Financial Analyst'} has proposed revised terms, the reputational risk regarding ${client}'s legal dispute ("${negativeResults[0].title}") remains unresolved. Legal will only approve this tender on the condition of a formal indemnity clause protecting us against any third-party liability and a full escrow payment structure. Until then, my stance remains Conditional.`
+        : `${roster.includes('Account Executive') ? "The Account Executive's" : "The Financial Analyst's"} revised proposal adequately addresses my primary concerns. Subject to the following conditions: (1) BAA signed before data ingestion, (2) all certified resources formally assigned in the SOW, and (3) a compliance audit milestone included in the delivery plan — Legal will withdraw its objection and approve the revised engagement.`
     },
     'Financial': {
       1: viable
         ? `Financial analysis complete for "${project}". Staffing ${neededDevs} developers at standard bench rates for ${months} months projects a total cost of approximately $${estimatedCost.toLocaleString()}, against the proposed budget of $${budget.toLocaleString()}. This yields a projected gross margin of ${margin}% — within our acceptable range. I support proceeding.`
-        : `The financial case for "${project}" is currently untenable. Staffing ${neededDevs} qualified developers for ${months} months at standard rates totals $${estimatedCost.toLocaleString()}, which exceeds ${client}'s proposed budget of $${budget.toLocaleString()} by $${(estimatedCost - budget).toLocaleString()}. We cannot absorb a negative-margin engagement. I am flagging this as a financial blocker and recommending renegotiation.`,
-      2: `If the Account Executive can secure a revised budget of $${Math.round(budget * 1.22).toLocaleString()} from ${client}, the margin recovers to approximately ${Math.round((((budget * 1.22) - estimatedCost) / (budget * 1.22)) * 100)}% — acceptable under our standard risk parameters. Provided the client amendment is signed before mobilization, I will withdraw my financial objection.`
+        : `The financial case for "${project}" is untenable. Staffing ${neededDevs} developers for ${months} months at standard rates totals $${estimatedCost.toLocaleString()}, which exceeds ${client}'s budget of $${budget.toLocaleString()} by $${(estimatedCost - budget).toLocaleString()}. However, to secure this strategic account, I propose we renegotiate for a revised budget of $${Math.round(budget * 1.22).toLocaleString()} or adopt a phased MVP delivery model to manage our delivery cost.`,
+      2: `I propose a revised budget of $${Math.round(budget * 1.22).toLocaleString()} from ${client} with a phased delivery model: Phase 1 as MVP, Phase 2 for full rollout. This structure recovers our margin to approximately ${Math.round((((budget * 1.22) - estimatedCost) / (budget * 1.22)) * 100)}% and resolves the initial financial risk.`
     },
     'Risk Analyst': {
       1: viable
         ? `Risk assessment for "${project}" is complete. Primary risks: scope creep in ${session.industry} environments (~35% probability), ${nominees.some(e => e.leaveRisk) ? 'mid-project leave gaps for key staff (flag for contingency coverage)' : 'key-person dependency on lead resources'}, and ${isHealthcare ? 'HIPAA audit delays' : isFinance ? 'PCI-DSS certification timeline' : 'third-party API integration delays'}. Overall risk tier: MEDIUM. Recommended mitigations: weekly risk register reviews, a 10% contingency buffer, and formal leave-coverage assignments.`
         : `Risk assessment for "${project}" raises a RED FLAG. Under-resourced budget, tight timeline, and ${isHealthcare ? 'HIPAA obligations' : isFinance ? 'PCI-DSS requirements' : 'complex integration requirements'} create a HIGH delivery risk profile. Probability of on-time, on-budget delivery at current parameters: ~40%. I strongly recommend renegotiating terms before commitment.`,
-      2: `Under the revised phased model, the risk profile improves from HIGH to MEDIUM. Phase-gated delivery reduces exposure materially. Provided risk checkpoints are embedded at each phase boundary, contingency is contractually reserved at 10%, and leave-coverage plans are documented, I can revise my rating to ACCEPTABLE.`
+      2: `Under the revised phased model proposed by the ${roster.includes('Account Executive') ? 'Account Executive' : 'Financial Analyst'}, the risk profile improves from HIGH to MEDIUM. Phase-gated delivery reduces exposure materially. Provided risk checkpoints are embedded at each phase boundary, contingency is contractually reserved at 10%, and leave-coverage plans are documented, I can revise my rating to ACCEPTABLE.`
     },
     'Operations Manager': {
       1: `Operations review of "${project}" is complete. A ${months}-month engagement requires ${isHealthcare ? 'a HIPAA-aware Agile framework with biweekly compliance checkpoints' : 'a standard Agile sprint cadence with 2-week sprints'}. ${availableDevs.length >= neededDevs ? `Team onboarding can begin within 5–7 business days given current bench availability.` : `With current availability, onboarding will take 3–4 weeks, compressing the delivery window.`} ${nominees.some(e => e.leaveRisk) ? 'A leave-coverage roster must be published before sprint 1 to avoid mid-sprint disruptions.' : ''} I recommend a formal kickoff workshop and project charter sign-off before sprint 1.`,
@@ -289,10 +289,10 @@ const buildFallback = (agentName, session, employees, debateHistory, searchResul
     },
     'Board of Directors': {
       1: viable && (!isHealthcare || hipaaDevs.length > 0)
-        ? `The Board has reviewed all departmental assessments for the "${project}" tender submitted by ${client}. Sales, Resource, Technical Architecture, Legal, and Finance have all validated project parameters within their respective remits. Risk exposure is within tolerance and strategic fit is confirmed. The Board issues its official verdict.\n[VERDICT: GO]`
-        : `The Board has reviewed all departmental assessments for "${project}". While the strategic opportunity is acknowledged, ${viable ? 'compliance and delivery' : 'financial viability and delivery'} concerns raised by multiple departments require formal resolution before commitment. The Board directs Sales to re-engage ${client} with revised terms. The Board issues a conditional ruling.\n[VERDICT: NEGOTIATE]`,
-      2: `The Board has considered the revised proposal for "${project}". The counter-offer addresses the core financial and compliance concerns, and the phased delivery model reduces technical risk to an acceptable level. Subject to execution of the formal amendment and compliance sign-offs, the Board approves advancing this engagement.\n[VERDICT: NEGOTIATE]`,
-      3: `The Board has completed a full two-round review of "${project}" with ${client}. The renegotiation produced a viable revised framework satisfying Financial, Legal, and Technical requirements. Conditional approval is granted, pending execution of the revised SOW and compliance documentation. The Board issues its final ruling.\n[VERDICT: NEGOTIATE]`
+        ? `The Board has reviewed all departmental assessments for the "${project}" tender submitted by ${client}. All participating departments have validated the project parameters within their respective remits. Risk exposure is within tolerance and strategic fit is confirmed. The Board issues its official verdict.\n[VERDICT: GO]`
+        : `The Board has reviewed all departmental assessments for "${project}". While the strategic opportunity is acknowledged, ${viable ? 'compliance and delivery' : 'financial viability and delivery'} concerns raised by multiple departments require formal resolution before commitment can be made. The Board directs ${roster.includes('Account Executive') ? 'Sales' : 'the Financial Analyst'} to re-engage ${client} with revised terms addressing the flagged objections. The Board issues a conditional ruling.\n[VERDICT: NEGOTIATE]`,
+      2: `The Board has considered the revised proposal presented during renegotiation for the "${project}" tender. The ${roster.includes('Account Executive') ? "Account Executive's" : "Financial Analyst's"} counter-offer addresses the core financial and compliance concerns, and the phased delivery model reduces technical risk to an acceptable level. Subject to execution of the formal amendment and compliance sign-offs, the Board approves advancing this engagement.\n[VERDICT: NEGOTIATE]`,
+      3: `The Board has completed a full two-round review of the "${project}" tender with ${client}. The renegotiation round produced a viable revised framework that satisfies Financial, Legal, and Technical requirements. Conditional approval is granted, pending execution of the revised SOW and compliance documentation. The Board issues its final ruling.\n[VERDICT: NEGOTIATE]`
     }
   };
 
@@ -305,7 +305,7 @@ const buildFallback = (agentName, session, employees, debateHistory, searchResul
 
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-const callGemini = async (agentName, contextPrompt, session, employees, debateHistory, searchResults = []) => {
+const callGemini = async (agentName, contextPrompt, session, roster, employees, debateHistory, searchResults = []) => {
   const apiKey = process.env.GEMINI_API_KEY;
 
   const configs = getConfigs();
@@ -376,7 +376,7 @@ const callGemini = async (agentName, contextPrompt, session, employees, debateHi
     }
   }
 
-  return { text: buildFallback(agentName, session, employees, debateHistory, searchResults), source: 'fallback' };
+  return { text: buildFallback(agentName, session, roster, employees, debateHistory, searchResults), source: 'fallback' };
 };
 
 // ─── Context prompt builder ──────────────────────────────────────────────────
@@ -529,7 +529,7 @@ const runDebateAsync = async (session, roster, emitter, pool, missionBriefing = 
     emit('typing', { sender: agentName });
 
     const contextPrompt = buildContext(agentName, session, roster, employees, debateHistory, extraNote, missionBriefing, searchResults);
-    const { text: messageText } = await callGemini(agentName, contextPrompt, session, employees, debateHistory, searchResults);
+    const { text: messageText } = await callGemini(agentName, contextPrompt, session, roster, employees, debateHistory, searchResults);
 
     const msg = { sender: agentName, message_text: messageText, negotiation_round: round };
     debateHistory.push(msg);
@@ -657,22 +657,32 @@ const runDebateAsync = async (session, roster, emitter, pool, missionBriefing = 
       if (techFlagged)     issues.push('Technical Architect raised feasibility, experience, or continuity concerns');
       if (riskFlagged)     issues.push('Risk Analyst flagged HIGH or CRITICAL risk profile');
 
-      if (roster.includes('Account Executive')) {
-        await runAgent('Account Executive', 2,
-          `Concerns raised: ${issues.join('; ')}. Propose a concrete counter-offer and revised terms.`);
-        agentFlags['Account Executive'] = 'approved';
-      }
+      const proposerName = roster.includes('Account Executive') ? 'Account Executive' : (roster.includes('Financial') ? 'Financial' : null);
 
-      if (financeFlagged && roster.includes('Financial')) {
-        await runAgent('Financial', 2,
-          'Account Executive proposed revised terms. Does the counter-offer resolve the financial concern?');
-        agentFlags['Financial'] = 'conditional';
+      if (proposerName) {
+        if (proposerName === 'Account Executive') {
+          await runAgent('Account Executive', 2,
+            `Concerns raised: ${issues.join('; ')}. Propose a concrete counter-offer and revised terms.`);
+          agentFlags['Account Executive'] = 'approved'; // AE always advocates
+        } else {
+          await runAgent('Financial', 2,
+            `Concerns raised: ${issues.join('; ')}. As Sales/AE advocate, propose a concrete counter-offer and revised terms.`);
+          agentFlags['Financial'] = 'conditional'; // negotiated — conditions placed
+        }
       }
 
       if (legalFlagged && roster.includes('Legal')) {
-        await runAgent('Legal', 2,
-          'Account Executive proposed compliance remediation. Are these measures sufficient?');
-        agentFlags['Legal'] = 'conditional';
+        const reactionContext = proposerName
+          ? `${proposerName} proposed compliance remediation or revised terms. Are these measures sufficient?`
+          : 'Re-evaluate our compliance stance. Are there any mitigating terms we can apply?';
+        await runAgent('Legal', 2, reactionContext);
+        agentFlags['Legal'] = 'conditional'; // conditions placed but not hard-blocked
+      }
+
+      if (proposerName === 'Account Executive' && financeFlagged && roster.includes('Financial')) {
+        await runAgent('Financial', 2,
+          'Account Executive proposed revised terms. Does the counter-offer resolve the financial concern?');
+        agentFlags['Financial'] = 'conditional'; // negotiated — conditions placed
       }
     }
 
