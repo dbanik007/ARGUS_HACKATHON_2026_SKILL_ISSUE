@@ -4,12 +4,51 @@ const fs = require('fs');
 const path = require('path');
 const { getConfigs } = require('./agentConfigs');
 
-const getEmployees = () => {
+// JSON fallback when DB is unavailable
+const getEmployeesJSON = () => {
   try {
     const dataPath = path.join(__dirname, '../data/dummy_employees.json');
     return JSON.parse(fs.readFileSync(dataPath, 'utf8'));
   } catch (err) {
     return [];
+  }
+};
+
+// Live DB query — employees + tech stacks + current/future project assignments
+const getEmployeesFromDB = async (pool) => {
+  if (!pool) return getEmployeesJSON();
+  try {
+    const result = await pool.query(`
+      SELECT
+        e.id, e.name, e.designation,
+        COALESCE(ARRAY_AGG(DISTINCT ts.name) FILTER (WHERE ts.name IS NOT NULL), '{}') AS tech_stacks,
+        COALESCE(ARRAY_AGG(DISTINCT p.name) FILTER (WHERE ep.project_type = 'current'  AND p.name IS NOT NULL), '{}') AS current_projects,
+        COALESCE(ARRAY_AGG(DISTINCT p.name) FILTER (WHERE ep.project_type = 'future'   AND p.name IS NOT NULL), '{}') AS future_projects
+      FROM employees e
+      LEFT JOIN employee_techstacks ets ON ets.employee_id = e.id
+      LEFT JOIN techstacks ts           ON ts.id = ets.techstack_id
+      LEFT JOIN employee_projects ep    ON ep.employee_id = e.id
+      LEFT JOIN projects p              ON p.id = ep.project_id
+      GROUP BY e.id, e.name, e.designation
+      ORDER BY e.name
+    `);
+
+    if (result.rows.length === 0) return getEmployeesJSON();
+
+    return result.rows.map(row => ({
+      id: row.id,
+      name: row.name,
+      designation: row.designation,
+      role: row.designation,                    // compat with fallback helpers
+      tech_stacks: row.tech_stacks || [],
+      current_projects: row.current_projects || [],
+      future_projects: row.future_projects || [],
+      available: (row.current_projects || []).length === 0,
+      hipaa_certified: (row.tech_stacks || []).some(s => /hipaa/i.test(s)),
+    }));
+  } catch (err) {
+    console.warn('[DB] Employee fetch failed, using JSON fallback:', err.message);
+    return getEmployeesJSON();
   }
 };
 
@@ -210,24 +249,48 @@ const callGemini = async (agentName, contextPrompt, session, employees, debateHi
 // ─── Context prompt builder ──────────────────────────────────────────────────
 
 const buildContext = (session, roster, employees, debateHistory, extraNote, missionBriefing) => {
-  const availableDevs = employees.filter(e => e.available);
+  const available = employees.filter(e => e.available);
+  const engaged   = employees.filter(e => !e.available);
   const hipaaDevs = employees.filter(e => e.hipaa_certified && e.available);
+
+  const fmtEmp = (e) => {
+    const skills  = (e.tech_stacks || e.skills || []).join(', ') || 'N/A';
+    const curr    = (e.current_projects || []).join(', ');
+    const fut     = (e.future_projects  || []).join(', ');
+    let line = `  - ${e.name} | ${e.role || e.designation} | Skills: ${skills}`;
+    if (curr) line += ` | Active: ${curr}`;
+    if (fut)  line += ` | Queued: ${fut}`;
+    return line;
+  };
+
+  const allSkills = [...new Set(employees.flatMap(e => e.tech_stacks || e.skills || []))].sort();
 
   const historyText = debateHistory.length > 0
     ? debateHistory.map(m => `[${m.sender}] (Round ${m.negotiation_round}): ${m.message_text}`).join('\n\n')
     : 'You are opening the boardroom debate.';
 
+  const budget = Number(session.budget);
+  const months = parseInt(session.timeline_months);
+  const estimatedDevs = Math.max(2, Math.ceil(budget / (months * 14000)));
+
   return `TENDER DETAILS:
 - Project: ${session.tender_name}
 - Client: ${session.client_name}
-- Budget: $${Number(session.budget).toLocaleString()}
-- Timeline: ${session.timeline_months} months
+- Budget: $${budget.toLocaleString()}
+- Timeline: ${months} months
 - Industry: ${session.industry}
 - Agents: ${roster.join(', ')}
+- Estimated team size needed for this project: ~${estimatedDevs} developers (budget ÷ $14k/dev/month)
+  IMPORTANT: Evaluate whether ${estimatedDevs} suitable developers are available — do NOT suggest staffing the entire bench.
 
-BENCH STAFF:
-${availableDevs.map(e => `  - ${e.name} | ${e.role} | HIPAA: ${e.hipaa_certified ? 'YES' : 'NO'}`).join('\n')}
-Available: ${availableDevs.length} | HIPAA-certified: ${hipaaDevs.length}
+EMPLOYEE ROSTER (${employees.length} total):
+Available for new work (${available.length})${hipaaDevs.length ? ` — HIPAA-certified: ${hipaaDevs.length}` : ''}:
+${available.length > 0 ? available.map(fmtEmp).join('\n') : '  (none available — all staff are currently engaged on active projects)'}
+
+Currently engaged on active projects (${engaged.length}):
+${engaged.length > 0 ? engaged.map(fmtEmp).join('\n') : '  (none engaged)'}
+
+Tech stack coverage: ${allSkills.length > 0 ? allSkills.join(', ') : 'N/A'}
 
 TRANSCRIPT:
 ${historyText}
@@ -241,7 +304,7 @@ Provide your assessment:`;
 
 const runDebateAsync = async (session, roster, emitter, pool, missionBriefing = null) => {
   const sessionId = session.id;
-  const employees = getEmployees();
+  const employees = await getEmployeesFromDB(pool);
   const debateHistory = [];
 
   const emit = (event, data) => emitter.emit(`${event}:${sessionId}`, data);
@@ -266,12 +329,24 @@ const runDebateAsync = async (session, roster, emitter, pool, missionBriefing = 
     return messageText;
   };
 
+  // Per-agent flag status — emitted with done event so frontend shows accurate badges
+  const agentFlags = {};
+
   try {
     // ── Round 1: Initial presentations ──────────────────────────────────────
     await runAgent('Account Executive', 1);
+    agentFlags['Account Executive'] = 'approved';
 
+    let resourceFlagged = false;
     if (roster.includes('Resource')) {
-      await runAgent('Resource', 1);
+      const resourceMsg = await runAgent('Resource', 1);
+      const rL = resourceMsg.toLowerCase();
+      resourceFlagged = rL.includes('staffing gap') || rL.includes('none available') ||
+                        rL.includes('no available') || rL.includes('shortfall') ||
+                        rL.includes('cannot staff') || rL.includes('no developers') ||
+                        rL.includes('0 developers') || rL.includes('not enough') ||
+                        rL.includes('insufficient') || rL.includes('resolve before');
+      agentFlags['Resource'] = resourceFlagged ? 'flagged' : 'approved';
     }
 
     // Technical Architect always participates
@@ -280,10 +355,11 @@ const runDebateAsync = async (session, roster, emitter, pool, missionBriefing = 
       const techMsg = await runAgent('Technical Architect', 1);
       const lower = techMsg.toLowerCase();
       techFlagged = lower.includes('not feasible') || lower.includes('unrealistic') ||
-                    lower.includes('risk') || lower.includes('blocker') ||
-                    lower.includes('concern') || lower.includes('insufficient') ||
-                    lower.includes('too short') || lower.includes('aggressive') ||
-                    lower.includes('cannot');
+                    lower.includes('blocker') || lower.includes('concern') ||
+                    lower.includes('insufficient') || lower.includes('too short') ||
+                    lower.includes('aggressive') || lower.includes('cannot') ||
+                    lower.includes('flagging') || lower.includes('high delivery risk');
+      agentFlags['Technical Architect'] = techFlagged ? 'conditional' : 'approved';
     }
 
     // Risk Analyst always participates
@@ -293,20 +369,29 @@ const runDebateAsync = async (session, roster, emitter, pool, missionBriefing = 
       const lower = riskMsg.toLowerCase();
       riskFlagged = lower.includes('high') || lower.includes('critical') ||
                     lower.includes('red flag') || lower.includes('strongly recommend') ||
-                    lower.includes('40%') || lower.includes('renegotiat');
+                    lower.includes('renegotiat') || lower.includes('unacceptable');
+      agentFlags['Risk Analyst'] = riskFlagged ? 'conditional' : 'approved';
     }
 
     // Operations Manager always participates
-    await runAgent('Operations Manager', 1);
+    {
+      const opsMsg = await runAgent('Operations Manager', 1);
+      const lower = opsMsg.toLowerCase();
+      const opsConcern = lower.includes('cannot execute') || lower.includes('execution gap') ||
+                         lower.includes('not executable') || lower.includes('operationally unsound');
+      agentFlags['Operations Manager'] = opsConcern ? 'conditional' : 'approved';
+    }
 
     let legalFlagged = false;
     if (roster.includes('Legal')) {
       const legalMsg = await runAgent('Legal', 1);
       const lower = legalMsg.toLowerCase();
-      legalFlagged = lower.includes('warning') || lower.includes('risk') ||
-                     lower.includes('violation') || lower.includes('non-compliant') ||
-                     lower.includes('cannot approve') || lower.includes('flag') ||
-                     lower.includes('blocking') || lower.includes('must');
+      legalFlagged = lower.includes('violation') || lower.includes('non-compliant') ||
+                     lower.includes('cannot approve') || lower.includes('blocking') ||
+                     lower.includes('flagging') || lower.includes('prohibit') ||
+                     lower.includes('must') || lower.includes('warning') ||
+                     lower.includes('no certified') || lower.includes('baa');
+      agentFlags['Legal'] = legalFlagged ? 'conditional' : 'approved';
     }
 
     let financeFlagged = false;
@@ -315,14 +400,18 @@ const runDebateAsync = async (session, roster, emitter, pool, missionBriefing = 
       const lower = financeMsg.toLowerCase();
       financeFlagged = lower.includes('negative') || lower.includes('deficit') ||
                        lower.includes('too low') || lower.includes('insufficient') ||
-                       lower.includes('unviable') || lower.includes('loss') ||
-                       lower.includes('exceeds') || lower.includes('shortfall') ||
-                       lower.includes('blocker');
+                       lower.includes('unviable') || lower.includes('untenable') ||
+                       lower.includes('loss') || lower.includes('exceeds') ||
+                       lower.includes('shortfall') || lower.includes('blocker') ||
+                       lower.includes('cannot cover') || lower.includes('renegotiat');
+      agentFlags['Financial'] = financeFlagged ? 'flagged' : 'approved';
     }
 
     // ── Round 2: Renegotiation ───────────────────────────────────────────────
-    if (financeFlagged || legalFlagged || techFlagged || riskFlagged) {
+    const anyFlagged = financeFlagged || legalFlagged || techFlagged || riskFlagged || resourceFlagged;
+    if (anyFlagged) {
       const issues = [];
+      if (resourceFlagged) issues.push('Resource Manager flagged insufficient available staff');
       if (financeFlagged) issues.push('budget flagged as financially unviable');
       if (legalFlagged) issues.push('unresolved regulatory compliance concerns');
       if (techFlagged) issues.push('Technical Architect raised feasibility/timeline concerns');
@@ -330,26 +419,36 @@ const runDebateAsync = async (session, roster, emitter, pool, missionBriefing = 
 
       await runAgent('Account Executive', 2,
         `Concerns raised: ${issues.join('; ')}. Propose a concrete counter-offer and revised terms.`);
+      agentFlags['Account Executive'] = 'approved'; // AE always advocates
 
       if (financeFlagged && roster.includes('Financial')) {
         await runAgent('Financial', 2,
           'Account Executive proposed revised terms. Does the counter-offer resolve the financial concern?');
+        agentFlags['Financial'] = 'conditional'; // negotiated — conditions placed
       }
 
       if (legalFlagged && roster.includes('Legal')) {
         await runAgent('Legal', 2,
           'Account Executive proposed compliance remediation. Are these measures sufficient?');
+        agentFlags['Legal'] = 'conditional'; // conditions placed but not hard-blocked
       }
     }
 
     // ── Final: Board of Directors verdict ───────────────────────────────────
-    const boardRound = (financeFlagged || legalFlagged || techFlagged || riskFlagged) ? 3 : 2;
+    const boardRound = anyFlagged ? 3 : 2;
     const boardMsg = await runAgent('Board of Directors', boardRound,
       'All agents have presented. Deliver the final binding verdict.');
 
     let verdict = 'GO';
     if (boardMsg.includes('[VERDICT: NO-GO]') || /\bno.go\b/i.test(boardMsg)) verdict = 'NO-GO';
     else if (boardMsg.includes('[VERDICT: NEGOTIATE]') || /\bnegotiate\b/i.test(boardMsg)) verdict = 'NEGOTIATE';
+
+    // If board says GO, all conditionals get cleared
+    if (verdict === 'GO') {
+      Object.keys(agentFlags).forEach(k => {
+        if (agentFlags[k] === 'conditional') agentFlags[k] = 'approved';
+      });
+    }
 
     const currentBudget = parseFloat(session.budget);
     const finalBudget = verdict === 'NEGOTIATE' ? Math.round(currentBudget * 1.25) : currentBudget;
@@ -364,7 +463,7 @@ const runDebateAsync = async (session, roster, emitter, pool, missionBriefing = 
       if (result.rows.length > 0) updatedSession = result.rows[0];
     }
 
-    emit('done', updatedSession);
+    emit('done', { ...updatedSession, agentFlags });
 
   } catch (err) {
     console.error(`Debate engine error (session ${sessionId}):`, err.message);

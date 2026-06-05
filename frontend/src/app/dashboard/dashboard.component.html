@@ -254,8 +254,8 @@
       </div>
     </aside>
 
-    <!-- CENTER: Swarm Debate Log Feed (45% width) -->
-    <section class="w-[45%] h-full flex flex-col border-r border-white/10 relative overflow-hidden bg-mesh shrink-0">
+    <!-- CENTER: Swarm Debate Log Feed — flex-1 so it expands when verdict panel is collapsed -->
+    <section class="flex-1 min-w-0 h-full flex flex-col border-r border-white/10 relative overflow-hidden bg-mesh">
       <!-- Header for log feed -->
       <div class="h-15 border-b border-white/10 flex items-center px-gutter justify-between bg-surface-container/30 backdrop-blur-sm z-10 shrink-0">
         <div class="flex items-center gap-sm">
@@ -342,7 +342,7 @@
             <button (click)="cancelEvaluation()"
                     class="flex items-center gap-xs px-2 py-1 rounded-lg bg-error/10 border border-error/30 text-error text-[10px] font-bold uppercase tracking-wider hover:bg-error/20 transition-all">
               <span class="material-symbols-outlined text-[12px]">stop_circle</span>
-              Cancel &amp; Clear
+              Cancel
             </button>
           </div>
 
@@ -453,6 +453,25 @@
           <div *ngIf="!activeSession" class="glass-panel rounded-xl p-6 flex flex-col items-center gap-sm border-dashed border-white/10 justify-center min-h-[140px] opacity-40 shrink-0">
             <span class="material-symbols-outlined text-3xl">balance</span>
             <p class="text-caption text-center">Awaiting execution data</p>
+          </div>
+
+          <!-- Per-Agent Stances -->
+          <div *ngIf="debateMessages.length > 0" class="flex flex-col gap-xs shrink-0">
+            <h4 class="font-label-md text-[10px] uppercase text-on-surface-variant/60 tracking-wider">Agent Verdicts</h4>
+            <div class="flex flex-col gap-1.5">
+              <div *ngFor="let stance of getAgentStances()" class="flex items-center justify-between gap-sm px-xs py-0.5 rounded hover:bg-white/3 transition-colors">
+                <div class="flex items-center gap-xs min-w-0">
+                  <div [class]="'w-1.5 h-1.5 rounded-full shrink-0 ' + getAgentDotClass(stance.agent)"></div>
+                  <span class="text-[11px] text-on-surface/80 font-medium truncate">{{ stance.agent }}</span>
+                </div>
+                <span [class]="'text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border whitespace-nowrap shrink-0 ' +
+                               (stance.status === 'approved' ? 'text-tertiary bg-tertiary/10 border-tertiary/20' :
+                                stance.status === 'flagged' ? 'text-error bg-error/10 border-error/20' :
+                                'text-amber-400 bg-amber-500/10 border-amber-500/20')">
+                  {{ stance.status === 'approved' ? 'Cleared' : stance.status === 'flagged' ? 'Flagged' : 'Conditional' }}
+                </span>
+              </div>
+            </div>
           </div>
 
           <!-- Parameters -->

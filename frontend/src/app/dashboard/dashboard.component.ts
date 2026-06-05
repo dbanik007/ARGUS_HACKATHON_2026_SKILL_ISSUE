@@ -122,6 +122,7 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
   isSidebarCollapsed: boolean = false;
   missionBriefing: string = '';
   verdictCollapsed: boolean = true;
+  agentFlags: { [agent: string]: string } = {};
 
   // Historical sessions
   historyList: EvaluationSession[] = [];
@@ -298,6 +299,7 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
     // Listener for the board's final evaluation details
     this.eventSource.addEventListener('verdict', (event: any) => {
       const data = JSON.parse(event.data);
+      this.agentFlags = data.agentFlags || {};
       this.activeSession = data;
       this.verdictCollapsed = false; // auto-open when verdict arrives
     });
@@ -358,6 +360,65 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
     }
   }
 
+  getAgentDotClass(sender: string): string {
+    const map: {[k: string]: string} = {
+      'Account Executive': 'bg-indigo-500',
+      'Resource': 'bg-blue-500',
+      'Technical Architect': 'bg-violet-500',
+      'Risk Analyst': 'bg-orange-500',
+      'Operations Manager': 'bg-teal-500',
+      'Legal': 'bg-rose-500',
+      'Financial': 'bg-amber-500',
+    };
+    return map[sender] || 'bg-primary';
+  }
+
+  getAgentStances(): Array<{agent: string, status: 'approved' | 'flagged' | 'conditional'}> {
+    // Build list from messages (one entry per agent, Board excluded)
+    const agentLatest = new Map<string, {text: string, round: number}>();
+    for (const msg of this.debateMessages) {
+      if (msg.sender !== 'Board of Directors') {
+        agentLatest.set(msg.sender, { text: msg.message_text, round: msg.negotiation_round });
+      }
+    }
+
+    return Array.from(agentLatest.keys()).map(agent => {
+      // Server-side flags are authoritative (live session)
+      if (this.agentFlags[agent]) {
+        return { agent, status: this.agentFlags[agent] as 'approved' | 'flagged' | 'conditional' };
+      }
+
+      // Fallback: text-based detection for historical sessions loaded from DB
+      const { text, round } = agentLatest.get(agent)!;
+      const t = text.toLowerCase();
+      let status: 'approved' | 'flagged' | 'conditional';
+
+      const hardBlock = t.includes('no-go') || t.includes('cannot proceed') ||
+                        t.includes('staffing gap') || t.includes('none available') ||
+                        t.includes('no available') || t.includes('untenable') ||
+                        t.includes('financially unviable') || t.includes('shortfall') ||
+                        t.includes('must be rejected') || t.includes('no developers');
+
+      const softConcern = t.includes('subject to') || t.includes('condition') ||
+                          t.includes('provided that') || t.includes('objection') ||
+                          t.includes('flagging') || t.includes('concerns') ||
+                          t.includes('cannot approve') || t.includes('will not approve') ||
+                          t.includes('resolve before') || t.includes('renegotiat') ||
+                          t.includes('high') || t.includes('blocker') || t.includes('insufficient') ||
+                          t.includes('must') || t.includes('aggressive');
+
+      const cleared = round >= 2 && (t.includes('withdraw') || t.includes('rescind') ||
+                                     t.includes('approve') || t.includes('cleared'));
+
+      if (cleared) status = 'conditional';
+      else if (hardBlock) status = 'flagged';
+      else if (softConcern) status = 'conditional';
+      else status = 'approved';
+
+      return { agent, status };
+    });
+  }
+
   getAgentColorClass(sender: string): string {
     switch(sender) {
       case 'Account Executive': return 'border-indigo-500 text-indigo-400 bg-indigo-500/10';
@@ -388,6 +449,7 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
     this.currentTypingAgent = null;
     this.verdictCollapsed = true;
     this.missionBriefing = '';
+    this.agentFlags = {};
   }
 
   onBriefingEnter(event: Event): void {
