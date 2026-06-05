@@ -12,7 +12,8 @@ import { HttpClient, HttpClientModule } from '@angular/common/http';
 })
 export class LoginComponent implements OnInit {
   errorMessage: string = '';
-  loading: boolean = false;
+  googleLoading: boolean = false;
+  mockLoading: boolean = false;
   backendUrl = 'http://localhost:3000';
 
   constructor(
@@ -38,12 +39,12 @@ export class LoginComponent implements OnInit {
   }
 
   loginWithGoogle(): void {
-    this.loading = true;
+    this.googleLoading = true;
     window.location.href = `${this.backendUrl}/api/auth/google`;
   }
 
   loginWithMock(): void {
-    this.loading = true;
+    this.mockLoading = true;
     this.errorMessage = '';
     this.http.get<{ token: string, user: any }>(`${this.backendUrl}/api/auth/mock-login`).subscribe({
       next: (res) => {
@@ -51,7 +52,7 @@ export class LoginComponent implements OnInit {
         this.router.navigate(['/dashboard']);
       },
       error: (err) => {
-        this.loading = false;
+        this.mockLoading = false;
         console.error('Mock login failed:', err);
         this.errorMessage = 'Mock authentication failed. Ensure backend service is active.';
       }
