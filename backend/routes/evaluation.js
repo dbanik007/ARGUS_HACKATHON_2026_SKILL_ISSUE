@@ -90,6 +90,55 @@ router.post('/start', authenticateJWT, async (req, res) => {
   }
 });
 
+// 1b. Restart an existing session — clears messages, resets verdict, reruns debate
+router.post('/restart/:id', authenticateJWT, async (req, res) => {
+  const sessionId = parseInt(req.params.id);
+  const { tenderName, clientName, budget, timelineMonths, industry, roster, missionBriefing } = req.body;
+
+  try {
+    // Make sure session belongs to this user
+    const check = await pool.query(
+      'SELECT id FROM evaluation_sessions WHERE id = $1 AND user_id = $2',
+      [sessionId, req.user.id]
+    );
+    if (check.rows.length === 0) {
+      return res.status(404).json({ error: 'Session not found.' });
+    }
+
+    // Clear previous messages
+    await pool.query('DELETE FROM debate_messages WHERE session_id = $1', [sessionId]);
+
+    // Reset session with (possibly updated) form data
+    const sessionRes = await pool.query(
+      `UPDATE evaluation_sessions
+       SET tender_name=$1, client_name=$2, budget=$3, timeline_months=$4,
+           industry=$5, roster=$6, final_verdict='PENDING', final_budget=$3,
+           created_at=NOW()
+       WHERE id=$7 RETURNING *`,
+      [tenderName, clientName, budget, timelineMonths, industry, roster, sessionId]
+    );
+    const session = sessionRes.rows[0];
+
+    // Cancel any still-running debate for this session
+    cancelledSessions.add(sessionId);
+    await new Promise(r => setTimeout(r, 50)); // brief pause so in-flight async sees cancel
+    cancelledSessions.delete(sessionId);
+
+    const isCancelled = () => cancelledSessions.has(session.id);
+    const safeBriefing = missionBriefing ? String(missionBriefing).slice(0, 1000) : null;
+    runDebateAsync(session, roster, debateEmitter, pool, safeBriefing, req.user.id, isCancelled)
+      .finally(() => cancelledSessions.delete(session.id))
+      .catch(err => {
+        console.error(`Unhandled debate error for session ${session.id}:`, err.message);
+      });
+
+    res.status(200).json(session);
+  } catch (err) {
+    console.error('Failed to restart session:', err);
+    res.status(500).json({ error: 'Failed to restart evaluation.' });
+  }
+});
+
 // 2. Stream Debate Progress via SSE — subscribes to debateEmitter events in real time
 router.get('/stream', async (req, res) => {
   const { sessionId } = req.query;
@@ -109,6 +158,23 @@ router.get('/stream', async (req, res) => {
       res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
     } catch (_) { /* client disconnected */ }
   };
+
+  // If the debate already finished before the client connected, send the final state immediately
+  try {
+    const sessionCheck = await pool.query(
+      'SELECT * FROM evaluation_sessions WHERE id = $1',
+      [sessionId]
+    );
+    if (sessionCheck.rows.length > 0) {
+      const s = sessionCheck.rows[0];
+      if (s.final_verdict && s.final_verdict !== 'PENDING') {
+        sendEvent('verdict', s);
+        sendEvent('done', {});
+        res.end();
+        return;
+      }
+    }
+  } catch (_) { /* DB check failed — fall through to live stream */ }
 
   const onTyping = (data) => sendEvent('typing', data);
   const onMessage = (data) => sendEvent('message', data);
