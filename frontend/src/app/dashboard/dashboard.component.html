@@ -67,7 +67,9 @@
 
     <!-- New Eval Button -->
     <div class="p-4 border-b border-white/10">
-      <button class="w-full py-2 flex items-center justify-center gap-2 border border-tertiary/30 bg-tertiary/10 text-tertiary rounded hover:bg-tertiary/20 transition-colors">
+      <button (click)="startNewEvaluation()"
+              [disabled]="evaluating"
+              class="w-full py-2 flex items-center justify-center gap-2 border border-tertiary/30 bg-tertiary/10 text-tertiary rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed hover:enabled:bg-tertiary/20">
         <span class="material-symbols-outlined text-[18px]">add</span>
         <span [class.hidden]="isSidebarCollapsed" class="text-sm font-semibold whitespace-nowrap">New Evaluation</span>
       </button>

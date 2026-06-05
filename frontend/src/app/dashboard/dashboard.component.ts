@@ -38,10 +38,10 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
   profilePicFailed: boolean = false;
 
   // Form Inputs
-  tenderName: string = 'Next-Gen Medical Telemetry Suite';
-  clientName: string = 'St. Jude Clinical';
-  budget: number = 85000;
-  timelineMonths: number = 6;
+  tenderName: string = '';
+  clientName: string = '';
+  budget: number = null as any;
+  timelineMonths: number = null as any;
   industry: string = 'Healthcare';
   
   // Validation errors
@@ -465,6 +465,29 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
   formatMoney(val: any): string {
     const num = Number(val);
     return isNaN(num) ? '0' : num.toLocaleString();
+  }
+
+  startNewEvaluation(): void {
+    if (this.evaluating) return;
+    if (this.eventSource) {
+      this.eventSource.close();
+      this.eventSource = null;
+    }
+    // Reset session state
+    this.activeSession = null;
+    this.debateMessages = [];
+    this.currentTypingAgent = null;
+    this.verdictCollapsed = true;
+    this.agentFlags = {};
+    this.missionBriefing = '';
+    this.errors = {};
+    this.activeTab = 'console';
+    // Clear form
+    this.tenderName = '';
+    this.clientName = '';
+    this.budget = null as any;
+    this.timelineMonths = null as any;
+    this.industry = 'Healthcare';
   }
 
   cancelEvaluation(): void {
