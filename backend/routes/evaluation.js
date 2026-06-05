@@ -1,10 +1,16 @@
+'use strict';
 const express = require('express');
 const router = express.Router();
+const { EventEmitter } = require('events');
 const { pool } = require('../config/db');
 const { authenticateJWT } = require('./auth');
-const { runDebate } = require('../services/debateEngine');
+const { runDebateAsync } = require('../services/debateEngine');
 
-// 1. Start Evaluation Session
+// Shared in-memory pub/sub for real-time SSE streaming
+const debateEmitter = new EventEmitter();
+debateEmitter.setMaxListeners(200);
+
+// 1. Start Evaluation Session — creates DB record, triggers async Gemini debate
 router.post('/start', authenticateJWT, async (req, res) => {
   const { tenderName, clientName, budget, timelineMonths, industry, roster } = req.body;
 
@@ -12,113 +18,76 @@ router.post('/start', authenticateJWT, async (req, res) => {
     return res.status(400).json({ error: 'Missing required evaluation parameters.' });
   }
 
-  const client = await pool.connect();
   try {
-    await client.query('BEGIN');
-
-    // Create session template
-    const sessionRes = await client.query(
-      `INSERT INTO evaluation_sessions 
-       (user_id, tender_name, client_name, budget, timeline_months, industry, roster, final_verdict, final_budget) 
+    const sessionRes = await pool.query(
+      `INSERT INTO evaluation_sessions
+       (user_id, tender_name, client_name, budget, timeline_months, industry, roster, final_verdict, final_budget)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
       [req.user.id, tenderName, clientName, budget, timelineMonths, industry, roster, 'PENDING', budget]
     );
     const session = sessionRes.rows[0];
 
-    // Run the boardroom debate simulation
-    const debateOutcome = runDebate(session, roster);
+    // Fire-and-forget: Gemini debate runs async, events flow via debateEmitter
+    runDebateAsync(session, roster, debateEmitter, pool).catch(err => {
+      console.error(`Unhandled debate error for session ${session.id}:`, err.message);
+    });
 
-    // Save debate messages to DB
-    for (const msg of debateOutcome.messages) {
-      await client.query(
-        `INSERT INTO debate_messages (session_id, sender, message_text, negotiation_round) 
-         VALUES ($1, $2, $3, $4)`,
-        [session.id, msg.sender, msg.message_text, msg.negotiation_round]
-      );
-    }
-
-    // Update session with final verdict and budget
-    const updatedSessionRes = await client.query(
-      `UPDATE evaluation_sessions 
-       SET final_verdict = $1, final_budget = $2 
-       WHERE id = $3 RETURNING *`,
-      [debateOutcome.verdict, debateOutcome.finalBudget, session.id]
-    );
-
-    await client.query('COMMIT');
-    res.status(201).json(updatedSessionRes.rows[0]);
+    res.status(201).json(session);
   } catch (err) {
-    await client.query('ROLLBACK');
-    console.error('Failed to run evaluation:', err);
+    console.error('Failed to create evaluation session:', err);
     res.status(500).json({ error: 'Failed to initiate boardroom debate.' });
-  } finally {
-    client.release();
   }
 });
 
-// 2. Stream Debate Progress via SSE (Server-Sent Events)
+// 2. Stream Debate Progress via SSE — subscribes to debateEmitter events in real time
 router.get('/stream', async (req, res) => {
   const { sessionId } = req.query;
   if (!sessionId) {
     return res.status(400).json({ error: 'Session ID is required.' });
   }
 
-  // Set SSE Headers
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('X-Accel-Buffering', 'no');
+  res.setHeader('Access-Control-Allow-Origin', process.env.FRONTEND_URL || 'http://localhost:4200');
   res.flushHeaders();
 
-  try {
-    // Fetch all messages for the session
-    const msgRes = await pool.query(
-      'SELECT * FROM debate_messages WHERE session_id = $1 ORDER BY id ASC',
-      [sessionId]
-    );
-    const messages = msgRes.rows;
+  const sendEvent = (event, data) => {
+    try {
+      res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+    } catch (_) { /* client disconnected */ }
+  };
 
-    const sessionRes = await pool.query(
-      'SELECT * FROM evaluation_sessions WHERE id = $1',
-      [sessionId]
-    );
-    const session = sessionRes.rows[0];
+  const onTyping = (data) => sendEvent('typing', data);
+  const onMessage = (data) => sendEvent('message', data);
 
-    let index = 0;
-    const sendNextMessage = () => {
-      if (index < messages.length) {
-        const msg = messages[index];
-
-        // Send typing indicator first
-        res.write(`event: typing\ndata: ${JSON.stringify({ sender: msg.sender })}\n\n`);
-
-        // Simulate typing delay
-        setTimeout(() => {
-          res.write(`event: message\ndata: ${JSON.stringify(msg)}\n\n`);
-          index++;
-          // Wait before the next speaker
-          setTimeout(sendNextMessage, 1500);
-        }, 1200);
-      } else {
-        // Send final verdict event
-        res.write(`event: verdict\ndata: ${JSON.stringify(session)}\n\n`);
-        res.write('event: done\ndata: {}\n\n');
-        res.end();
-      }
-    };
-
-    // Start stream sequence
-    sendNextMessage();
-
-  } catch (err) {
-    console.error('SSE Stream error:', err);
-    res.write(`event: error\ndata: ${JSON.stringify({ error: err.message })}\n\n`);
+  const onDone = (sessionData) => {
+    sendEvent('verdict', sessionData);
+    sendEvent('done', {});
+    cleanup();
     res.end();
-  }
+  };
 
-  req.on('close', () => {
-    console.log(`SSE client closed connection for session ${sessionId}`);
-  });
+  const onError = (data) => {
+    sendEvent('error', data);
+    cleanup();
+    res.end();
+  };
+
+  const cleanup = () => {
+    debateEmitter.off(`typing:${sessionId}`, onTyping);
+    debateEmitter.off(`message:${sessionId}`, onMessage);
+    debateEmitter.off(`done:${sessionId}`, onDone);
+    debateEmitter.off(`error:${sessionId}`, onError);
+  };
+
+  debateEmitter.on(`typing:${sessionId}`, onTyping);
+  debateEmitter.on(`message:${sessionId}`, onMessage);
+  debateEmitter.on(`done:${sessionId}`, onDone);
+  debateEmitter.on(`error:${sessionId}`, onError);
+
+  req.on('close', cleanup);
 });
 
 // 3. Get User Session History

@@ -16,6 +16,12 @@ services:
       - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql
     networks:
       - boardroom-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d boardroom"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
 
   backend:
     build:
@@ -33,10 +39,18 @@ services:
       - NODE_ENV=${NODE_ENV}
       - FRONTEND_URL=http://localhost:4200
       - BACKEND_URL=http://localhost:3000
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     networks:
       - boardroom-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
 
   frontend:
     build:
@@ -46,7 +60,8 @@ services:
     ports:
       - "4200:4200"
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     networks:
       - boardroom-network
 

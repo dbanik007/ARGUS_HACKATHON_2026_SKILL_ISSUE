@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm --version)",
+      "Bash(npx @angular/cli version)",
+      "Bash(npx @angular/cli new tendermind-ai --routing=true --style=scss --standalone=true --skip-git=true --skip-install=false)",
+      "Bash(npx ng *)",
+      "Bash(mkdir -p /home/samrat/hackathon/tendermind-ai/src/app/models)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:4200)",
+      "Bash(npm install *)",
+      "Bash(node --input-type=module)",
+      "Bash(chmod +x /home/samrat/hackathon/start.sh)",
+      "Bash(node --check /home/samrat/hackathon/backend/services/debateEngine.js)",
+      "Bash(node --check /home/samrat/hackathon/backend/routes/evaluation.js)",
+      "Bash(docker compose *)",
+      "Bash(docker exec *)"
+    ],
+    "additionalDirectories": [
+      "/home/samrat/hackathon/tendermind-ai/src/app"
+    ]
+  }
+}
