@@ -227,6 +227,9 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
     switch(sender) {
       case 'Account Executive': return 'person';
       case 'Resource': return 'engineering';
+      case 'Technical Architect': return 'architecture';
+      case 'Risk Analyst': return 'shield';
+      case 'Operations Manager': return 'settings_suggest';
       case 'Legal': return 'gavel';
       case 'Financial': return 'payments';
       case 'Board of Directors': return 'corporate_fare';
@@ -238,6 +241,9 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
     switch(sender) {
       case 'Account Executive': return 'border-indigo-500 text-indigo-400 bg-indigo-500/10';
       case 'Resource': return 'border-blue-500 text-blue-400 bg-blue-500/10';
+      case 'Technical Architect': return 'border-violet-500 text-violet-400 bg-violet-500/10';
+      case 'Risk Analyst': return 'border-orange-500 text-orange-400 bg-orange-500/10';
+      case 'Operations Manager': return 'border-teal-500 text-teal-400 bg-teal-500/10';
       case 'Legal': return 'border-rose-500 text-rose-400 bg-rose-500/10';
       case 'Financial': return 'border-amber-500 text-amber-400 bg-amber-500/10';
       case 'Board of Directors': return 'border-emerald-500 text-emerald-400 bg-emerald-500/10';
