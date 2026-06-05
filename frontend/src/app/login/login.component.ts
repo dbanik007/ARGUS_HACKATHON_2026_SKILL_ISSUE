@@ -1,7 +1,7 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
-import { HttpClient, HttpClientModule } from '@angular/common/http';
+import { HttpClient, HttpClientModule, HttpHeaders } from '@angular/common/http';
 
 @Component({
   selector: 'app-login',
@@ -13,8 +13,7 @@ import { HttpClient, HttpClientModule } from '@angular/common/http';
 export class LoginComponent implements OnInit {
   errorMessage: string = '';
   googleLoading: boolean = false;
-  mockLoading: boolean = false;
-  backendUrl = 'http://localhost:3000';
+  readonly backendUrl = 'http://localhost:3000';
 
   constructor(
     private route: ActivatedRoute,
@@ -23,18 +22,16 @@ export class LoginComponent implements OnInit {
   ) {}
 
   ngOnInit(): void {
-    // Intercept Google OAuth token from URL query params
     this.route.queryParams.subscribe(params => {
       const token = params['token'];
       if (token) {
         localStorage.setItem('token', token);
-        this.router.navigate(['/dashboard']);
+        this.redirectAfterLogin();
       }
     });
 
-    // If already logged in, redirect
     if (localStorage.getItem('token')) {
-      this.router.navigate(['/dashboard']);
+      this.redirectAfterLogin();
     }
   }
 
@@ -43,18 +40,18 @@ export class LoginComponent implements OnInit {
     window.location.href = `${this.backendUrl}/api/auth/google`;
   }
 
-  loginWithMock(): void {
-    this.mockLoading = true;
-    this.errorMessage = '';
-    this.http.get<{ token: string, user: any }>(`${this.backendUrl}/api/auth/mock-login`).subscribe({
+  private redirectAfterLogin(): void {
+    const token = localStorage.getItem('token') ?? '';
+    this.http.get<{ onboarded: boolean }>(
+      `${this.backendUrl}/api/onboarding/status`,
+      { headers: new HttpHeaders().set('Authorization', `Bearer ${token}`) }
+    ).subscribe({
       next: (res) => {
-        localStorage.setItem('token', res.token);
-        this.router.navigate(['/dashboard']);
+        this.router.navigate([res.onboarded ? '/dashboard' : '/onboarding']);
       },
-      error: (err) => {
-        this.mockLoading = false;
-        console.error('Mock login failed:', err);
-        this.errorMessage = 'Mock authentication failed. Ensure backend service is active.';
+      error: () => {
+        // If status check fails, fall back to dashboard (guard will redirect if needed)
+        this.router.navigate(['/dashboard']);
       }
     });
   }
