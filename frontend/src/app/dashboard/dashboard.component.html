@@ -468,10 +468,26 @@
             <h2 class="font-headline-md text-body-lg font-semibold text-on-surface uppercase tracking-widest">
               Executive Verdict
             </h2>
-            <button (click)="verdictCollapsed = true"
-                    class="w-7 h-7 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center transition-all hover:scale-110">
-              <span class="material-symbols-outlined text-[16px] text-on-surface-variant">chevron_right</span>
-            </button>
+            <div class="flex items-center gap-xs">
+              <!-- Copy Markdown -->
+              <button (click)="copyVerdictMarkdown()"
+                      *ngIf="activeSession && activeSession.final_verdict !== 'EVALUATING'"
+                      class="w-7 h-7 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center transition-all hover:scale-110 active:scale-95"
+                      title="Copy Verdict to Clipboard">
+                <span class="material-symbols-outlined text-[16px] text-on-surface-variant">content_copy</span>
+              </button>
+              <!-- Export/Download Markdown -->
+              <button (click)="exportVerdictMarkdown()"
+                      *ngIf="activeSession && activeSession.final_verdict !== 'EVALUATING'"
+                      class="w-7 h-7 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center transition-all hover:scale-110 active:scale-95"
+                      title="Download Markdown Report">
+                <span class="material-symbols-outlined text-[16px] text-on-surface-variant">download</span>
+              </button>
+              <button (click)="verdictCollapsed = true"
+                      class="w-7 h-7 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center transition-all hover:scale-110">
+                <span class="material-symbols-outlined text-[16px] text-on-surface-variant">chevron_right</span>
+              </button>
+            </div>
           </div>
 
           <!-- Active session verdict badge block -->
