@@ -303,8 +303,17 @@
         </div>
 
         <!-- Chat messages loop -->
-        <div *ngFor="let msg of debateMessages" 
-             class="glass-panel p-sm rounded-lg flex gap-sm group hover:scale-[1.01] transition-all duration-300 relative max-w-[85%] border"
+        <ng-container *ngFor="let msg of debateMessages">
+
+          <!-- Session divider -->
+          <div *ngIf="msg.sender === 'NewEvaluation'" class="w-full flex items-center gap-sm my-xs self-stretch">
+            <div class="flex-1 h-px bg-white/10"></div>
+            <span class="text-[10px] uppercase tracking-wider text-on-surface-variant/40 px-sm whitespace-nowrap">New Evaluation</span>
+            <div class="flex-1 h-px bg-white/10"></div>
+          </div>
+
+          <div *ngIf="msg.sender !== 'NewEvaluation'"
+               class="glass-panel p-sm rounded-lg flex gap-sm group hover:scale-[1.01] transition-all duration-300 relative max-w-[85%] border"
              [class.self-end]="msg.sender === 'User'"
              [class.self-start]="msg.sender !== 'User'"
              [class.bg-primary/[0.04]]="msg.sender === 'User'"
@@ -339,7 +348,9 @@
             </div>
             <p class="font-body-md text-caption text-on-surface-variant/90 leading-relaxed whitespace-pre-line">{{ msg.message_text }}</p>
           </div>
-        </div>
+          </div>
+
+        </ng-container>
 
         <!-- Live Typing Indicator -->
         <div *ngIf="evaluating" class="glass-panel p-sm rounded-lg flex gap-sm relative opacity-85 animate-pulse bg-white/2 max-w-[85%] self-start border border-white/5">

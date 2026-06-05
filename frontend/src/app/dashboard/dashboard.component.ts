@@ -286,9 +286,20 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
       next: (data) => {
         this.historyList = data;
         if (autoRestore && this.historyList.length > 0) {
-          const latest = this.historyList[0];
-          if (latest.final_verdict === 'PENDING') {
-            this.restorePendingSession(latest);
+          const cancelled: number[] = JSON.parse(sessionStorage.getItem('cancelledSessions') || '[]');
+          const lastIdStr = sessionStorage.getItem('lastSessionId');
+          const lastId = lastIdStr ? parseInt(lastIdStr) : null;
+
+          // Find the specific session that was last visible, fall back to newest
+          const target = (lastId ? this.historyList.find((s: EvaluationSession) => s.id === lastId) : null)
+                         || this.historyList[0];
+
+          if (target && target.final_verdict === 'PENDING' && !cancelled.includes(target.id)) {
+            // Still running and not cancelled — reconnect SSE
+            this.restorePendingSession(target);
+          } else if (target && target.final_verdict !== 'ERROR') {
+            // Completed OR cancelled — show the data, no SSE reconnect
+            this.selectHistorySession(target);
           }
         }
       },
@@ -299,6 +310,10 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
   }
 
   restorePendingSession(session: EvaluationSession): void {
+    // Skip sessions the user explicitly cancelled this browser session
+    const cancelled: number[] = JSON.parse(sessionStorage.getItem('cancelledSessions') || '[]');
+    if (cancelled.includes(session.id)) return;
+
     const token = localStorage.getItem('token');
     if (!token) return;
 
@@ -332,12 +347,17 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
     if (!token) return;
 
     // Reset previous session states
+    sessionStorage.removeItem('cancelledSessions');
     this.evaluating = true;
     this.activeSession = null;
-    this.debateMessages = [];
+    this.agentFlags = {};
     this.currentTypingAgent = null;
     this.activeTab = 'console';
     this.verdictCollapsed = true;
+    // Keep existing messages visible — insert a divider to separate sessions
+    if (this.debateMessages.length > 0) {
+      this.debateMessages.push({ sender: 'NewEvaluation', message_text: '', negotiation_round: 0 });
+    }
 
     // Map roster items
     const roster: string[] = [];
@@ -361,6 +381,7 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
     const headers = new HttpHeaders().set('Authorization', `Bearer ${token}`);
     this.http.post<EvaluationSession>(`${this.backendUrl}/api/evaluation/start`, body, { headers }).subscribe({
       next: (session) => {
+        sessionStorage.setItem('lastSessionId', String(session.id));
         this.activeSession = { ...session, final_verdict: 'EVALUATING' };
         this.setupSSEStream(session.id);
       },
@@ -420,6 +441,7 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
   }
 
   selectHistorySession(session: EvaluationSession): void {
+    sessionStorage.setItem('lastSessionId', String(session.id));
     const token = localStorage.getItem('token');
     if (!token) return;
 
@@ -436,6 +458,14 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
         this.currentTypingAgent = null;
         this.activeTab = 'console';
         this.verdictCollapsed = false;
+        this.agentFlags = {};
+        // Populate form so user can tweak and re-run
+        this.tenderName = data.session.tender_name;
+        this.clientName = data.session.client_name;
+        this.budget = Number(data.session.budget);
+        this.timelineMonths = Number(data.session.timeline_months);
+        this.industry = data.session.industry;
+        this.errors = {};
       },
       error: (err) => {
         console.error('Failed to load session details:', err);
@@ -756,6 +786,8 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
       this.eventSource.close();
       this.eventSource = null;
     }
+    sessionStorage.removeItem('lastSessionId');
+    sessionStorage.removeItem('cancelledSessions');
     // Reset session state
     this.activeSession = null;
     this.debateMessages = [];
@@ -774,24 +806,19 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
   }
 
   cancelEvaluation(): void {
-    // Tell the backend to stop making further Gemini calls for this session
-    if (this.activeSession) {
-      const token = localStorage.getItem('token');
-      const headers = new HttpHeaders().set('Authorization', `Bearer ${token}`);
-      this.http.post(`${this.backendUrl}/api/evaluation/cancel/${this.activeSession.id}`, {}, { headers }).subscribe();
-    }
-
     if (this.eventSource) {
       this.eventSource.close();
       this.eventSource = null;
     }
+    // Remember this session was cancelled so refresh doesn't auto-restore it
+    if (this.activeSession) {
+      const cancelled: number[] = JSON.parse(sessionStorage.getItem('cancelledSessions') || '[]');
+      if (!cancelled.includes(this.activeSession.id)) cancelled.push(this.activeSession.id);
+      sessionStorage.setItem('cancelledSessions', JSON.stringify(cancelled));
+    }
     this.evaluating = false;
-    this.activeSession = null;
-    this.debateMessages = [];
     this.currentTypingAgent = null;
-    this.verdictCollapsed = true;
-    this.missionBriefing = '';
-    this.agentFlags = {};
+    // Keep messages, form data, and session — user can adjust inputs and re-run
   }
 
   onBriefingEnter(event: Event): void {
