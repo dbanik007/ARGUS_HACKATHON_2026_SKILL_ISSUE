@@ -590,12 +590,12 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
     this.http
       .get<any>(`${this.backendUrl}/api/evaluation/session/${session.id}`, { headers })
       .subscribe({
-        next: (data: any) => {
+        next: (data) => {
           this.activeSession = data.session;
           this.debateMessages = data.messages;
           this.currentTypingAgent = null;
           this.activeTab = 'console';
-          this.verdictCollapsed = false;
+          this.verdictCollapsed = true;
           this.agentFlags = {};
           // Populate form so user can tweak and re-run
           this.tenderName = data.session.tender_name;
@@ -605,7 +605,7 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
           this.industry = data.session.industry;
           this.errors = {};
         },
-        error: (err: any) => {
+        error: (err) => {
           console.error('Failed to load session details:', err);
         },
       });
