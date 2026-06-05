@@ -457,7 +457,7 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
         this.debateMessages = data.messages;
         this.currentTypingAgent = null;
         this.activeTab = 'console';
-        this.verdictCollapsed = false;
+        this.verdictCollapsed = true;
         this.agentFlags = {};
         // Populate form so user can tweak and re-run
         this.tenderName = data.session.tender_name;
