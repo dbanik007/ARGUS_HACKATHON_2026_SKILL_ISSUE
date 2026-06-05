@@ -456,22 +456,22 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
       .subscribe({
         next: (data) => {
           this.historyList = data;
-          if (autoRestore && this.historyList.length > 0) {
+          if (autoRestore) {
+            const lastIdStr = sessionStorage.getItem('lastSessionId');
+            if (!lastIdStr) return; // User started a New Evaluation — stay blank on refresh
+
+            const lastId = parseInt(lastIdStr);
+            const target = this.historyList.find((s: EvaluationSession) => s.id === lastId);
+            if (!target) return; // Session no longer found
+
             const cancelled: number[] = JSON.parse(
               sessionStorage.getItem('cancelledSessions') || '[]',
             );
-            const lastIdStr = sessionStorage.getItem('lastSessionId');
-            const lastId = lastIdStr ? parseInt(lastIdStr) : null;
 
-            // Find the specific session that was last visible, fall back to newest
-            const target =
-              (lastId ? this.historyList.find((s: EvaluationSession) => s.id === lastId) : null) ||
-              this.historyList[0];
-
-            if (target && target.final_verdict === 'PENDING' && !cancelled.includes(target.id)) {
+            if (target.final_verdict === 'PENDING' && !cancelled.includes(target.id)) {
               // Still running and not cancelled — reconnect SSE
               this.restorePendingSession(target);
-            } else if (target && target.final_verdict !== 'ERROR') {
+            } else if (target.final_verdict !== 'ERROR') {
               // Completed OR cancelled — show the data, no SSE reconnect
               this.selectHistorySession(target);
             }
@@ -494,14 +494,39 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
     this.evaluating = true;
     this.activeSession = { ...session, final_verdict: 'EVALUATING' };
     this.verdictCollapsed = true;
+    this.activeTab = 'console';
+    sessionStorage.setItem('lastSessionId', String(session.id));
 
     const headers = new HttpHeaders().set('Authorization', `Bearer ${token}`);
     this.http
       .get<any>(`${this.backendUrl}/api/evaluation/session/${session.id}`, { headers })
       .subscribe({
         next: (data: any) => {
+          // If the debate already finished while we were away, show it as completed
+          if (data.session.final_verdict !== 'PENDING') {
+            this.evaluating = false;
+            this.activeSession = data.session;
+            this.debateMessages = data.messages;
+            this.currentTypingAgent = null;
+            this.activeTab = 'console';
+            this.verdictCollapsed = true;
+            this.agentFlags = {};
+            this.tenderName = data.session.tender_name;
+            this.clientName = data.session.client_name;
+            this.budget = Number(data.session.budget);
+            this.timelineMonths = Number(data.session.timeline_months);
+            this.industry = data.session.industry;
+            this.errors = {};
+            return;
+          }
           if (this.activeSession && this.activeSession.id === session.id) {
             this.debateMessages = data.messages;
+            this.tenderName = data.session.tender_name;
+            this.clientName = data.session.client_name;
+            this.budget = Number(data.session.budget);
+            this.timelineMonths = Number(data.session.timeline_months);
+            this.industry = data.session.industry;
+            this.errors = {};
             this.setupSSEStream(session.id);
           }
         },
@@ -525,7 +550,6 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
     // Reset previous session states
     sessionStorage.removeItem('cancelledSessions');
     this.evaluating = true;
-    this.activeSession = null;
     this.agentFlags = {};
     this.currentTypingAgent = null;
     this.activeTab = 'console';
@@ -555,22 +579,32 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
     };
 
     const headers = new HttpHeaders().set('Authorization', `Bearer ${token}`);
-    this.http
-      .post<EvaluationSession>(`${this.backendUrl}/api/evaluation/start`, body, { headers })
-      .subscribe({
-        next: (session: EvaluationSession) => {
-          sessionStorage.setItem('lastSessionId', String(session.id));
-          this.activeSession = { ...session, final_verdict: 'EVALUATING' };
-          this.setupSSEStream(session.id);
-        },
-        error: (err: any) => {
-          this.evaluating = false;
-          console.error('Failed to start evaluation:', err);
-          const errMsg =
-            err.error?.error || 'Could not start evaluation. Please verify database connection.';
-          alert(errMsg);
-        },
-      });
+
+    // If re-evaluating an existing session (cancel → new prompt, or library load → new prompt),
+    // restart in-place so library stays clean (same session ID, no new row).
+    const existingId = this.activeSession?.id;
+    const url = existingId
+      ? `${this.backendUrl}/api/evaluation/restart/${existingId}`
+      : `${this.backendUrl}/api/evaluation/start`;
+    const request = existingId
+      ? this.http.post<EvaluationSession>(url, body, { headers })
+      : this.http.post<EvaluationSession>(url, body, { headers });
+
+    this.activeSession = null;
+    request.subscribe({
+      next: (session: EvaluationSession) => {
+        sessionStorage.setItem('lastSessionId', String(session.id));
+        this.activeSession = { ...session, final_verdict: 'EVALUATING' };
+        this.setupSSEStream(session.id);
+      },
+      error: (err: any) => {
+        this.evaluating = false;
+        console.error('Failed to start evaluation:', err);
+        const errMsg =
+          err.error?.error || 'Could not start evaluation. Please verify database connection.';
+        alert(errMsg);
+      },
+    });
   }
 
   private setupSSEStream(sessionId: number): void {
@@ -622,11 +656,23 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
   }
 
   selectHistorySession(session: EvaluationSession): void {
+    // PENDING sessions need SSE reconnect, not a static data load
+    if (session.final_verdict === 'PENDING') {
+      this.restorePendingSession(session);
+      return;
+    }
+
     sessionStorage.setItem('lastSessionId', String(session.id));
     const token = localStorage.getItem('token');
     if (!token) return;
 
+    // Switch tab immediately so the user sees the transition right away
+    this.activeTab = 'console';
     this.evaluating = false;
+    this.currentTypingAgent = null;
+    this.verdictCollapsed = true;
+    this.agentFlags = {};
+    this.debateMessages = [];
     if (this.eventSource) {
       this.eventSource.close();
     }
@@ -635,13 +681,9 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
     this.http
       .get<any>(`${this.backendUrl}/api/evaluation/session/${session.id}`, { headers })
       .subscribe({
-        next: (data) => {
+        next: (data: any) => {
           this.activeSession = data.session;
           this.debateMessages = data.messages;
-          this.currentTypingAgent = null;
-          this.activeTab = 'console';
-          this.verdictCollapsed = true;
-          this.agentFlags = {};
           // Populate form so user can tweak and re-run
           this.tenderName = data.session.tender_name;
           this.clientName = data.session.client_name;

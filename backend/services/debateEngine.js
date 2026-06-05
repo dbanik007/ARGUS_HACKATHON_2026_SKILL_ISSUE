@@ -45,6 +45,21 @@ const calcYearsExp = (doj) => {
   return Math.max(0, parseFloat(years.toFixed(1)));
 };
 
+// Max concurrent projects an employee can handle based on years of experience
+const maxProjectCapacity = (yearsExp) => {
+  if (yearsExp === null || yearsExp === undefined) return 1;
+  if (yearsExp < 1)  return 1;
+  if (yearsExp < 3)  return 2;
+  if (yearsExp < 7)  return 3;
+  return 5;
+};
+
+// Only include employees in engineering / technical roles
+const isEngineeringRole = (designation) => {
+  if (!designation) return false;
+  return /developer|engineer|architect|analyst|devops|qa|quality|tester|designer|tech lead|technical|cto|vp.{0,10}engineer|vp.{0,10}tech|director.{0,10}tech|director.{0,10}eng|software|programmer|sre|data scientist|machine learning|ml engineer|ai engineer|cloud|frontend|backend|full.?stack|mobile dev|web dev|scrum master|product owner|agile coach|it manager|it lead|infrastructure|network engineer|database|dba|security engineer|cybersecurity|pen tester|penetration/i.test(designation);
+};
+
 // Human-readable leave summary for context prompt
 const fmtLeave = (l) => {
   const start = l.start_date instanceof Date
@@ -99,6 +114,9 @@ const getEmployeesFromDB = async (pool, projectTimelineMonths) => {
 
     if (result.rows.length === 0) return getEmployeesJSON();
 
+    // Exclude non-engineering staff (HR, admin, finance, security guards, etc.)
+    result.rows = result.rows.filter(r => isEngineeringRole(r.designation));
+
     // Batch-fetch upcoming approved leaves for all employees
     const empIds = result.rows.map(r => r.id);
     let leavesByEmp = {};
@@ -128,6 +146,8 @@ const getEmployeesFromDB = async (pool, projectTimelineMonths) => {
       const upcomingLeaves  = leavesByEmp[row.id] || [];
       const techStacks      = row.tech_stacks || [];
       const yearsExp        = calcYearsExp(row.date_of_joining);
+      const maxCapacity     = maxProjectCapacity(yearsExp);
+      const availableSlots  = Math.max(0, maxCapacity - currentProjects.length);
 
       return {
         id:                   row.id,
@@ -141,7 +161,9 @@ const getEmployeesFromDB = async (pool, projectTimelineMonths) => {
         current_project_count: currentProjects.length,
         past_projects:        pastProjects,
         upcoming_leaves:      upcomingLeaves,
-        available:            currentProjects.length === 0,
+        max_project_capacity: maxCapacity,
+        available_slots:      availableSlots,
+        available:            availableSlots > 0,
         hipaa_certified:      techStacks.some(s => /hipaa/i.test(s)),
       };
     });
@@ -157,10 +179,17 @@ const AGENT_PERSONAS = {
   'Resource': `You are the Resource Manager in a corporate boardroom tender evaluation.
 Your job is to assess WHICH specific employees are best suited for this project and whether the team can be assembled without delivery risk.
 
+Employee project capacity is determined by years of experience (calculated from date of joining):
+- < 1 year experience → max 1 concurrent project
+- 1–3 years experience → max 2 concurrent projects
+- 3–7 years experience → max 3 concurrent projects
+- 7+ years experience → max 5 concurrent projects
+Only employees with available_slots > 0 can take on new work. Employees already at capacity MUST NOT be nominated.
+
 For each candidate you nominate, explicitly evaluate:
-- Workload: how many active projects they are currently on (0 = fully available, 1 = partial capacity, 2+ = high risk of overload).
+- Available slots: current projects vs max capacity (shown as X/Y in the roster).
 - Upcoming leaves: any approved or pending leave windows that fall within the project timeline — flag any that cover more than 2 consecutive weeks as a staffing risk.
-- Domain alignment: whether their past project domains match the tender's industry vertical (a Healthcare specialist is preferred for a Healthcare tender).
+- Domain alignment: whether their past project domains match the tender's industry vertical.
 - Years of experience: senior staff (5+ years) should anchor complex or high-stakes projects.
 - HIPAA / compliance certifications if the industry requires it.
 
@@ -458,6 +487,9 @@ const buildContext = (agentName, session, roster, employees, debateHistory, extr
     const skills   = (e.tech_stacks || e.skills || []).join(', ') || 'N/A';
     const exp      = e.years_experience != null ? `${e.years_experience} yrs exp` : 'exp unknown';
     const workload = workloadLabel(e.current_project_count || (e.current_projects || []).length);
+    const capacity = e.max_project_capacity != null
+      ? `capacity: ${e.current_project_count ?? (e.current_projects || []).length}/${e.max_project_capacity} projects, ${e.available_slots ?? 0} slot(s) free`
+      : workload;
 
     // Past project domains
     const pastDomains = (e.past_projects || [])
@@ -470,7 +502,7 @@ const buildContext = (agentName, session, roster, employees, debateHistory, extr
       ? `LEAVE: ${leaves.map(fmtLeave).join(' | ')}`
       : 'No upcoming leaves';
 
-    let line = `  - ${e.name} | ${e.role || e.designation} | ${exp} | Skills: ${skills} | Workload: ${workload}`;
+    let line = `  - ${e.name} | ${e.role || e.designation} | ${exp} | Skills: ${skills} | ${capacity}`;
     if (pastDomains) line += ` | Past projects: ${pastDomains}`;
     line += ` | ${leaveStr}`;
     return line;
