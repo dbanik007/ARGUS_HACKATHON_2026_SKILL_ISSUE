@@ -14,38 +14,115 @@ const getEmployeesJSON = () => {
   }
 };
 
-// Live DB query — employees + tech stacks + current/future project assignments
-const getEmployeesFromDB = async (pool) => {
+// Years of experience from a date string or Date
+const calcYearsExp = (doj) => {
+  if (!doj) return null;
+  const joined = new Date(doj);
+  const now = new Date();
+  const years = (now - joined) / (1000 * 60 * 60 * 24 * 365.25);
+  return Math.max(0, parseFloat(years.toFixed(1)));
+};
+
+// Human-readable leave summary for context prompt
+const fmtLeave = (l) => {
+  const start = l.start_date instanceof Date
+    ? l.start_date.toISOString().split('T')[0]
+    : String(l.start_date).split('T')[0];
+  const end = l.end_date instanceof Date
+    ? l.end_date.toISOString().split('T')[0]
+    : String(l.end_date).split('T')[0];
+  const days = l.duration_days || Math.round((new Date(end) - new Date(start)) / 86400000) + 1;
+  return `${start} → ${end} (${days}d, ${l.leave_type || 'planned'})`;
+};
+
+// Live DB query — employees enriched with experience, workload, upcoming leaves, past project domains
+const getEmployeesFromDB = async (pool, projectTimelineMonths) => {
   if (!pool) return getEmployeesJSON();
+
+  const lookAheadDays = Math.max(90, (projectTimelineMonths || 6) * 30);
+  const lookAheadDate = new Date();
+  lookAheadDate.setDate(lookAheadDate.getDate() + lookAheadDays);
+
   try {
     const result = await pool.query(`
       SELECT
-        e.id, e.name, e.designation,
+        e.id, e.name, e.designation, e.date_of_joining,
         COALESCE(ARRAY_AGG(DISTINCT ts.name) FILTER (WHERE ts.name IS NOT NULL), '{}') AS tech_stacks,
-        COALESCE(ARRAY_AGG(DISTINCT p.name) FILTER (WHERE ep.project_type = 'current'  AND p.name IS NOT NULL), '{}') AS current_projects,
-        COALESCE(ARRAY_AGG(DISTINCT p.name) FILTER (WHERE ep.project_type = 'future'   AND p.name IS NOT NULL), '{}') AS future_projects
+        COALESCE(
+          JSON_AGG(DISTINCT JSONB_BUILD_OBJECT(
+            'name', p_cur.name,
+            'domain', COALESCE(p_cur.domain, 'General'),
+            'complexity', COALESCE(p_cur.complexity, 'medium')
+          )) FILTER (WHERE ep_cur.project_type = 'current' AND p_cur.name IS NOT NULL),
+          '[]'
+        ) AS current_projects,
+        COALESCE(
+          JSON_AGG(DISTINCT JSONB_BUILD_OBJECT(
+            'name', p_past.name,
+            'domain', COALESCE(p_past.domain, 'General'),
+            'complexity', COALESCE(p_past.complexity, 'medium')
+          )) FILTER (WHERE ep_past.project_type = 'past' AND p_past.name IS NOT NULL),
+          '[]'
+        ) AS past_projects
       FROM employees e
-      LEFT JOIN employee_techstacks ets ON ets.employee_id = e.id
-      LEFT JOIN techstacks ts           ON ts.id = ets.techstack_id
-      LEFT JOIN employee_projects ep    ON ep.employee_id = e.id
-      LEFT JOIN projects p              ON p.id = ep.project_id
-      GROUP BY e.id, e.name, e.designation
+      LEFT JOIN employee_techstacks ets  ON ets.employee_id = e.id
+      LEFT JOIN techstacks ts            ON ts.id = ets.techstack_id
+      LEFT JOIN employee_projects ep_cur ON ep_cur.employee_id = e.id AND ep_cur.project_type = 'current'
+      LEFT JOIN projects p_cur           ON p_cur.id = ep_cur.project_id
+      LEFT JOIN employee_projects ep_past ON ep_past.employee_id = e.id AND ep_past.project_type = 'past'
+      LEFT JOIN projects p_past          ON p_past.id = ep_past.project_id
+      GROUP BY e.id, e.name, e.designation, e.date_of_joining
       ORDER BY e.name
     `);
 
     if (result.rows.length === 0) return getEmployeesJSON();
 
-    return result.rows.map(row => ({
-      id: row.id,
-      name: row.name,
-      designation: row.designation,
-      role: row.designation,                    // compat with fallback helpers
-      tech_stacks: row.tech_stacks || [],
-      current_projects: row.current_projects || [],
-      future_projects: row.future_projects || [],
-      available: (row.current_projects || []).length === 0,
-      hipaa_certified: (row.tech_stacks || []).some(s => /hipaa/i.test(s)),
-    }));
+    // Batch-fetch upcoming approved leaves for all employees
+    const empIds = result.rows.map(r => r.id);
+    let leavesByEmp = {};
+    try {
+      const leaveRes = await pool.query(`
+        SELECT employee_id, start_date, end_date, leave_type, status,
+               (end_date - start_date + 1) AS duration_days
+        FROM employee_leaves
+        WHERE employee_id = ANY($1)
+          AND status IN ('approved', 'pending')
+          AND end_date >= CURRENT_DATE
+          AND start_date <= $2
+        ORDER BY start_date
+      `, [empIds, lookAheadDate.toISOString().split('T')[0]]);
+
+      leaveRes.rows.forEach(l => {
+        if (!leavesByEmp[l.employee_id]) leavesByEmp[l.employee_id] = [];
+        leavesByEmp[l.employee_id].push(l);
+      });
+    } catch (leaveErr) {
+      console.warn('[DB] Leaves fetch skipped (table may not exist yet):', leaveErr.message);
+    }
+
+    return result.rows.map(row => {
+      const currentProjects = Array.isArray(row.current_projects) ? row.current_projects : [];
+      const pastProjects    = Array.isArray(row.past_projects)    ? row.past_projects    : [];
+      const upcomingLeaves  = leavesByEmp[row.id] || [];
+      const techStacks      = row.tech_stacks || [];
+      const yearsExp        = calcYearsExp(row.date_of_joining);
+
+      return {
+        id:                   row.id,
+        name:                 row.name,
+        designation:          row.designation,
+        role:                 row.designation,
+        date_of_joining:      row.date_of_joining,
+        years_experience:     yearsExp,
+        tech_stacks:          techStacks,
+        current_projects:     currentProjects,
+        current_project_count: currentProjects.length,
+        past_projects:        pastProjects,
+        upcoming_leaves:      upcomingLeaves,
+        available:            currentProjects.length === 0,
+        hipaa_certified:      techStacks.some(s => /hipaa/i.test(s)),
+      };
+    });
   } catch (err) {
     console.warn('[DB] Employee fetch failed, using JSON fallback:', err.message);
     return getEmployeesJSON();
@@ -60,12 +137,28 @@ Champion this project — advocate strongly for a GO. Be persuasive, strategic, 
 Reference specific details: client name, budget, timeline, and industry. Respond in 2-4 concise sentences.`,
 
   'Resource': `You are the Resource Manager in a corporate boardroom tender evaluation.
-Assess developer bench availability, skill coverage, HIPAA certifications, and staffing feasibility.
-Be data-driven. Reference specific staff from the available list. Respond in 2-4 concise sentences.`,
+Your job is to assess WHICH specific employees are best suited for this project and whether the team can be assembled without delivery risk.
+
+For each candidate you nominate, explicitly evaluate:
+- Workload: how many active projects they are currently on (0 = fully available, 1 = partial capacity, 2+ = high risk of overload).
+- Upcoming leaves: any approved or pending leave windows that fall within the project timeline — flag any that cover more than 2 consecutive weeks as a staffing risk.
+- Domain alignment: whether their past project domains match the tender's industry vertical (a Healthcare specialist is preferred for a Healthcare tender).
+- Years of experience: senior staff (5+ years) should anchor complex or high-stakes projects.
+- HIPAA / compliance certifications if the industry requires it.
+
+Nominate specific employees by name, explain your reasoning, and flag any gaps or risks you cannot cover from current bench capacity.
+Respond in 3-5 concise sentences.`,
 
   'Technical Architect': `You are the Senior Technical Architect in a corporate boardroom tender evaluation.
-Assess technical feasibility, architecture complexity, stack requirements, integration risks, and timeline realism.
-Flag any delivery blockers or architecture red flags. Respond in 2-4 concise sentences.`,
+Your job is to assess technical delivery risk based on the team composition AND the project requirements.
+
+When evaluating the proposed team, consider:
+- Tech stack depth: do nominated staff actually hold the required skills, and at what experience level? Senior engineers (5+ years) own architectural decisions; junior staff need oversight.
+- Domain experience: past project domains signal real-world context. A developer who has delivered Healthcare or FinTech projects understands the non-functional requirements implicitly.
+- Leave impact: if a key technical lead is on extended leave mid-project, flag the continuity risk — who will own architecture decisions in their absence?
+- Timeline realism: cross-reference estimated team size, their experience levels, and the project timeline to assess whether on-time delivery is credible.
+
+Flag any delivery blockers or architecture red flags. Assign a technical risk tier (LOW / MEDIUM / HIGH). Respond in 3-5 concise sentences.`,
 
   'Risk Analyst': `You are the Risk Analyst in a corporate boardroom tender evaluation.
 Identify and quantify delivery risks, reputational exposure, vendor dependency risks, and strategic risks for this project.
@@ -117,6 +210,30 @@ const buildFallback = (agentName, session, employees, debateHistory) => {
     ? Math.max(...debateHistory.map(m => m.negotiation_round))
     : 1;
 
+  // Identify best candidates with richer signals
+  const ranked = availableDevs
+    .map(e => {
+      let score = 0;
+      const exp = e.years_experience || 0;
+      score += Math.min(exp * 2, 16); // up to 16 pts for 8+ yrs
+      if (e.hipaa_certified && isHealthcare) score += 10;
+      const pastDomains = (e.past_projects || []).map(p =>
+        typeof p === 'string' ? '' : (p.domain || '').toLowerCase()
+      );
+      if (pastDomains.some(d => d.includes(industry.split(' ')[0]))) score += 8;
+      const leaveRisk = (e.upcoming_leaves || []).some(l => (l.duration_days || 0) >= 14);
+      if (leaveRisk) score -= 6;
+      const workload = e.current_project_count || 0;
+      score -= workload * 5;
+      return { ...e, score, leaveRisk };
+    })
+    .sort((a, b) => b.score - a.score);
+
+  const nominees = ranked.slice(0, neededDevs);
+  const nomineeNames = nominees
+    .map(e => `${e.name} (${e.role}, ${e.years_experience ? e.years_experience + ' yrs exp' : 'exp unknown'}${e.leaveRisk ? ', ⚠ leave overlap' : ''})`)
+    .join(', ');
+
   const map = {
     'Account Executive': {
       1: `The opportunity from ${client} for "${project}" is exactly the strategic account we've been targeting in the ${session.industry} sector. Their proposed $${budget.toLocaleString()} investment over ${months} months aligns well with our current go-to-market focus. I'm confident in our ability to deliver and strongly advocate for a GO — we cannot afford to let this slip to a competitor.`,
@@ -124,23 +241,23 @@ const buildFallback = (agentName, session, employees, debateHistory) => {
     },
     'Resource': {
       1: availableDevs.length >= neededDevs
-        ? `Bench review complete for "${project}". We have ${availableDevs.length} developers available, and I'm proposing an allocation of ${neededDevs}: ${availableDevs.slice(0, neededDevs).map(d => `${d.name} (${d.role})`).join(', ')}. ${isHealthcare ? `${hipaaDevs.length} are HIPAA-certified, which satisfies the healthcare compliance requirement.` : 'Staffing is cleared for immediate onboarding.'}`
-        : `Bench review for "${project}" reveals a staffing gap. We need ${neededDevs} developers but only ${availableDevs.length} are currently available. I recommend either extending the timeline to ${Math.ceil(months * 1.3)} months or engaging a sub-contractor to fill the ${neededDevs - availableDevs.length} shortfall roles. This is a risk we must resolve before committing.`,
-      2: `Following the Account Executive's revised proposal, I've re-examined our staffing model under the phased delivery structure. With Phase 1 scoped at a reduced team of ${Math.max(2, neededDevs - 1)}, we can proceed within current bench capacity. I'm prepared to approve staffing for the revised plan.`
+        ? `Bench review complete for "${project}" (${session.industry} vertical, ${months}-month window). I recommend the following ${neededDevs}-person team: ${nomineeNames}. ${isHealthcare ? `${hipaaDevs.length} HIPAA-certified developers are included, satisfying compliance staffing requirements.` : 'Domain alignment and experience levels are confirmed.'} ${nominees.some(e => e.leaveRisk) ? `Note: one or more nominees have leave windows exceeding 2 weeks during the project — backup coverage should be planned.` : 'No disruptive leave conflicts identified within this timeline.'}`
+        : `Bench review for "${project}" reveals a staffing gap. We need ${neededDevs} developers but only ${availableDevs.length} are fully available. Best available candidates: ${nominees.length > 0 ? nomineeNames : 'none cleared'}. I recommend extending the timeline to ${Math.ceil(months * 1.3)} months or sub-contracting ${neededDevs - availableDevs.length} role(s). This must be resolved before we commit.`,
+      2: `Following the Account Executive's revised phased proposal, I've re-examined staffing under a reduced Phase 1 team of ${Math.max(2, neededDevs - 1)}. With current bench capacity and the adjusted scope, we can proceed. Leave impacts are manageable within a phased structure. I'm prepared to approve staffing for the revised plan.`
     },
     'Technical Architect': {
       1: viable
-        ? `Technical review of "${project}" is complete. The ${months}-month timeline is achievable with a well-structured sprint cadence — I recommend a 2-week discovery sprint upfront to finalize architecture blueprints. No exotic technology dependencies identified; standard ${isHealthcare ? 'HIPAA-compliant cloud architecture' : isFinance ? 'PCI-DSS certified infrastructure' : 'microservices stack'} applies. Technical risk is LOW.`
-        : `"${project}" raises a technical delivery concern: the ${months}-month window is aggressive for a project of this complexity and scope. Based on typical ${session.industry} implementations, I estimate a realistic timeline of ${Math.ceil(months * 1.3)}–${Math.ceil(months * 1.5)} months or a significantly reduced MVP scope. I'm flagging this as a HIGH delivery risk at current parameters and recommend renegotiation.`,
-      2: `Under the Account Executive's revised phased model, the technical risk drops significantly. Phase 1 as an MVP is architecturally sound — we focus on core modules and defer integrations to Phase 2. I can approve the revised delivery structure from a technical standpoint, provided we have a formal architecture review checkpoint at the end of Phase 1.`
+        ? `Technical review of "${project}" is complete. The proposed team brings relevant experience — ${nominees.length > 0 ? `${nominees[0].name} (${nominees[0].years_experience} yrs) can anchor architectural decisions` : 'a senior technical lead is available'}. The ${months}-month timeline is achievable with a structured sprint cadence; I recommend a 2-week discovery sprint upfront. ${nominees.some(e => e.leaveRisk) ? 'A leave coverage plan must be defined for staff with mid-project absences.' : 'No continuity risks from planned absences.'} Technical risk: LOW.`
+        : `"${project}" raises delivery concerns. The ${months}-month window is aggressive for a project of this complexity, and ${neededDevs > availableDevs.length ? 'bench capacity is insufficient to staff it correctly' : 'experience levels on the proposed team may not sustain architecture ownership at this pace'}. I estimate a realistic timeline of ${Math.ceil(months * 1.3)}–${Math.ceil(months * 1.5)} months. I'm flagging this as HIGH delivery risk at current parameters.`,
+      2: `Under the Account Executive's phased model, technical risk drops significantly. Phase 1 as a focused MVP is architecturally sound — core modules first, integrations deferred. I can approve the revised structure provided a formal architecture checkpoint occurs at Phase 1 close and leave coverage is documented for key resources.`
     },
     'Legal': {
       1: isHealthcare
-        ? `"${project}" operates in a HIPAA-regulated environment — this is non-negotiable. All developers assigned must hold active HIPAA certification, and we require a signed Business Associate Agreement (BAA) from ${client} prior to any data access. ${hipaaDevs.length > 0 ? `We have ${hipaaDevs.length} certified developers available (${hipaaDevs.map(d => d.name).join(', ')}), so compliance is achievable, but contractual protections must be in place before go-live.` : `Currently, none of our available bench developers are HIPAA-certified — this is a blocking compliance risk that must be resolved.`}`
+        ? `"${project}" operates in a HIPAA-regulated environment. All assigned developers must hold active HIPAA certification, and a signed Business Associate Agreement (BAA) from ${client} is required before any data access. ${hipaaDevs.length > 0 ? `We have ${hipaaDevs.length} certified developer(s) available (${hipaaDevs.map(d => d.name).join(', ')}), so compliance staffing is achievable, but contractual protections must be in place before go-live.` : 'None of our available staff are currently HIPAA-certified — this is a blocking compliance risk.'}`
         : isFinance
-        ? `"${project}" triggers PCI-DSS Level 1 and SOC 2 Type II obligations as a Financial Services engagement. All infrastructure must be certified and all code subject to independent security audits before production deployment. I recommend building compliance costs (~$15,000) into the contract and including a liability cap clause. Legal can approve subject to these contractual conditions.`
-        : `Legal review of "${project}" is complete. Standard commercial IP terms apply — no elevated regulatory exposure detected. I recommend including a robust change-order process, IP ownership clauses, and a data-processing addendum. No compliance blockers identified. Cleared for GO from a legal standpoint.`,
-      2: `The Account Executive's revised proposal adequately addresses my primary concerns. Subject to the following conditions: (1) BAA signed before data ingestion, (2) all certified resources formally assigned in the SOW, and (3) a compliance audit milestone included in the delivery plan — Legal will withdraw its objection and approve the revised engagement.`
+        ? `"${project}" triggers PCI-DSS Level 1 and SOC 2 Type II obligations as a Financial Services engagement. All infrastructure must be certified and code subject to independent security audits before production. I recommend building compliance costs (~$15,000) into the contract and including a liability cap clause. Legal can approve subject to these conditions.`
+        : `Legal review of "${project}" is complete. Standard commercial IP terms apply — no elevated regulatory exposure detected. I recommend including a robust change-order process, IP ownership clauses, and a data-processing addendum. No compliance blockers identified; cleared for GO from a legal standpoint.`,
+      2: `The Account Executive's revised proposal adequately addresses my primary concerns. Subject to: (1) BAA signed before data ingestion, (2) all certified resources formally assigned in the SOW, and (3) a compliance audit milestone in the delivery plan — Legal will withdraw its objection and approve the revised engagement.`
     },
     'Financial': {
       1: viable
@@ -150,26 +267,25 @@ const buildFallback = (agentName, session, employees, debateHistory) => {
     },
     'Risk Analyst': {
       1: viable
-        ? `Risk assessment for "${project}" is complete. Primary risks identified: scope creep in ${session.industry} environments (~35% probability), key-person dependency on ${availableDevs[0] ? availableDevs[0].name : 'lead architect'}, and ${isHealthcare ? 'HIPAA audit delays' : isFinance ? 'PCI-DSS certification timeline' : 'third-party API integration delays'}. Overall risk tier: MEDIUM. Recommended mitigations: weekly risk register reviews, a 10% contingency buffer, and a formal escalation matrix.`
-        : `Risk assessment for "${project}" raises a RED FLAG. The combination of an under-resourced budget, tight timeline, and ${isHealthcare ? 'HIPAA regulatory obligations' : isFinance ? 'PCI-DSS compliance requirements' : 'complex integration requirements'} creates a HIGH delivery risk profile. Probability of on-time, on-budget delivery at current parameters: approximately 40%. I strongly recommend renegotiating terms before commitment to reduce tail risk.`,
-      2: `Under the revised phased delivery model proposed by the Account Executive, the risk profile improves materially. Phase-gated delivery reduces exposure from HIGH to MEDIUM. Provided risk checkpoints are embedded at each phase boundary and a contingency reserve of 10% is contractually allocated, I can revise my risk rating to ACCEPTABLE for the revised engagement structure.`
+        ? `Risk assessment for "${project}" is complete. Primary risks: scope creep in ${session.industry} environments (~35% probability), ${nominees.some(e => e.leaveRisk) ? 'mid-project leave gaps for key staff (flag for contingency coverage)' : 'key-person dependency on lead resources'}, and ${isHealthcare ? 'HIPAA audit delays' : isFinance ? 'PCI-DSS certification timeline' : 'third-party API integration delays'}. Overall risk tier: MEDIUM. Recommended mitigations: weekly risk register reviews, a 10% contingency buffer, and formal leave-coverage assignments.`
+        : `Risk assessment for "${project}" raises a RED FLAG. Under-resourced budget, tight timeline, and ${isHealthcare ? 'HIPAA obligations' : isFinance ? 'PCI-DSS requirements' : 'complex integration requirements'} create a HIGH delivery risk profile. Probability of on-time, on-budget delivery at current parameters: ~40%. I strongly recommend renegotiating terms before commitment.`,
+      2: `Under the revised phased model, the risk profile improves from HIGH to MEDIUM. Phase-gated delivery reduces exposure materially. Provided risk checkpoints are embedded at each phase boundary, contingency is contractually reserved at 10%, and leave-coverage plans are documented, I can revise my rating to ACCEPTABLE.`
     },
     'Operations Manager': {
-      1: `Operations review of "${project}" is complete. A ${months}-month project of this scale requires ${isHealthcare ? 'a HIPAA-aware Agile framework with biweekly compliance checkpoints' : 'a standard Agile sprint cadence with 2-week sprints'}. ${availableDevs.length >= neededDevs ? `Team onboarding can begin within 5–7 business days given current bench availability.` : `With current bench availability, onboarding will take 3–4 weeks, which compresses the delivery window.`} I recommend a formal kickoff workshop and a project charter sign-off before sprint 1.`,
-      2: `The phased delivery structure proposed is operationally sound. Phase 1 MVP with a dedicated core team reduces coordination overhead significantly. I'll implement a structured RAID log (Risks, Assumptions, Issues, Dependencies) from Day 1 and establish weekly stakeholder reporting to ${client}. Operations can support the revised plan.`
+      1: `Operations review of "${project}" is complete. A ${months}-month engagement requires ${isHealthcare ? 'a HIPAA-aware Agile framework with biweekly compliance checkpoints' : 'a standard Agile sprint cadence with 2-week sprints'}. ${availableDevs.length >= neededDevs ? `Team onboarding can begin within 5–7 business days given current bench availability.` : `With current availability, onboarding will take 3–4 weeks, compressing the delivery window.`} ${nominees.some(e => e.leaveRisk) ? 'A leave-coverage roster must be published before sprint 1 to avoid mid-sprint disruptions.' : ''} I recommend a formal kickoff workshop and project charter sign-off before sprint 1.`,
+      2: `The phased delivery structure proposed is operationally sound. Phase 1 MVP with a focused core team reduces coordination overhead significantly. I'll implement a RAID log from Day 1 and establish weekly stakeholder reporting to ${client}. Operations can support the revised plan.`
     },
     'Board of Directors': {
       1: viable && (!isHealthcare || hipaaDevs.length > 0)
-        ? `The Board has reviewed all departmental assessments for the "${project}" tender submitted by ${client}. All five departments — Sales, Resource, Technical Architecture, Legal, and Finance — have validated the project parameters within their respective remits. Risk exposure is within tolerance and strategic fit is confirmed. The Board issues its official verdict.\n[VERDICT: GO]`
-        : `The Board has reviewed all departmental assessments for "${project}". While the strategic opportunity is acknowledged, ${viable ? 'compliance and delivery' : 'financial viability and delivery'} concerns raised by multiple departments require formal resolution before commitment can be made. The Board directs Sales to re-engage ${client} with revised terms addressing the flagged objections. The Board issues a conditional ruling.\n[VERDICT: NEGOTIATE]`,
-      2: `The Board has considered the revised proposal presented during renegotiation for the "${project}" tender. The Account Executive's counter-offer addresses the core financial and compliance concerns, and the phased delivery model reduces technical risk to an acceptable level. Subject to execution of the formal amendment and compliance sign-offs, the Board approves advancing this engagement.\n[VERDICT: NEGOTIATE]`,
-      3: `The Board has completed a full two-round review of the "${project}" tender with ${client}. The renegotiation round produced a viable revised framework that satisfies Financial, Legal, and Technical requirements. Conditional approval is granted, pending execution of the revised SOW and compliance documentation. The Board issues its final ruling.\n[VERDICT: NEGOTIATE]`
+        ? `The Board has reviewed all departmental assessments for the "${project}" tender submitted by ${client}. Sales, Resource, Technical Architecture, Legal, and Finance have all validated project parameters within their respective remits. Risk exposure is within tolerance and strategic fit is confirmed. The Board issues its official verdict.\n[VERDICT: GO]`
+        : `The Board has reviewed all departmental assessments for "${project}". While the strategic opportunity is acknowledged, ${viable ? 'compliance and delivery' : 'financial viability and delivery'} concerns raised by multiple departments require formal resolution before commitment. The Board directs Sales to re-engage ${client} with revised terms. The Board issues a conditional ruling.\n[VERDICT: NEGOTIATE]`,
+      2: `The Board has considered the revised proposal for "${project}". The counter-offer addresses the core financial and compliance concerns, and the phased delivery model reduces technical risk to an acceptable level. Subject to execution of the formal amendment and compliance sign-offs, the Board approves advancing this engagement.\n[VERDICT: NEGOTIATE]`,
+      3: `The Board has completed a full two-round review of "${project}" with ${client}. The renegotiation produced a viable revised framework satisfying Financial, Legal, and Technical requirements. Conditional approval is granted, pending execution of the revised SOW and compliance documentation. The Board issues its final ruling.\n[VERDICT: NEGOTIATE]`
     }
   };
 
   const agentResponses = map[agentName];
   if (!agentResponses) return `Assessment of "${project}" complete. My evaluation has been submitted to the boardroom record.`;
-
   return agentResponses[round] || agentResponses[1];
 };
 
@@ -188,7 +304,6 @@ const callGemini = async (agentName, contextPrompt, session, employees, debateHi
     systemInstruction += `\n\nCUSTOM OPERATIONAL DIRECTIVES:\n${agentConfig.customDirectives}`;
   }
 
-  // Also pass the slider values dynamically
   if (agentName === 'Account Executive') {
     systemInstruction += `\nCaution Level: ${agentConfig.slider1}%. Aggressiveness Level: ${agentConfig.slider2}%.`;
   } else if (agentName === 'Legal') {
@@ -214,7 +329,6 @@ const callGemini = async (agentName, contextPrompt, session, employees, debateHi
       const is429 = err.message && (err.message.includes('429') || err.message.includes('Too Many Requests'));
 
       if (is429) {
-        // Extract suggested retry delay from error message
         const retryMatch = err.message.match(/"retryDelay":\s*"(\d+)s"/);
         const retryDelaySec = retryMatch ? parseInt(retryMatch[1]) : 0;
 
@@ -242,11 +356,17 @@ const callGemini = async (agentName, contextPrompt, session, employees, debateHi
     }
   }
 
-  // Fallback: context-aware synthesized response
   return { text: buildFallback(agentName, session, employees, debateHistory), source: 'fallback' };
 };
 
 // ─── Context prompt builder ──────────────────────────────────────────────────
+
+// Workload label from active project count
+const workloadLabel = (count) => {
+  if (count === 0) return 'Fully available';
+  if (count === 1) return 'Partial capacity (1 active project)';
+  return `High load (${count} active projects)`;
+};
 
 const buildContext = (session, roster, employees, debateHistory, extraNote, missionBriefing) => {
   const available = employees.filter(e => e.available);
@@ -254,12 +374,24 @@ const buildContext = (session, roster, employees, debateHistory, extraNote, miss
   const hipaaDevs = employees.filter(e => e.hipaa_certified && e.available);
 
   const fmtEmp = (e) => {
-    const skills  = (e.tech_stacks || e.skills || []).join(', ') || 'N/A';
-    const curr    = (e.current_projects || []).join(', ');
-    const fut     = (e.future_projects  || []).join(', ');
-    let line = `  - ${e.name} | ${e.role || e.designation} | Skills: ${skills}`;
-    if (curr) line += ` | Active: ${curr}`;
-    if (fut)  line += ` | Queued: ${fut}`;
+    const skills   = (e.tech_stacks || e.skills || []).join(', ') || 'N/A';
+    const exp      = e.years_experience != null ? `${e.years_experience} yrs exp` : 'exp unknown';
+    const workload = workloadLabel(e.current_project_count || (e.current_projects || []).length);
+
+    // Past project domains
+    const pastDomains = (e.past_projects || [])
+      .map(p => typeof p === 'string' ? p : `${p.name} [${p.domain || 'General'}, ${p.complexity || 'medium'} complexity]`)
+      .join('; ');
+
+    // Upcoming leave windows
+    const leaves = (e.upcoming_leaves || []);
+    const leaveStr = leaves.length > 0
+      ? `LEAVE: ${leaves.map(fmtLeave).join(' | ')}`
+      : 'No upcoming leaves';
+
+    let line = `  - ${e.name} | ${e.role || e.designation} | ${exp} | Skills: ${skills} | Workload: ${workload}`;
+    if (pastDomains) line += ` | Past projects: ${pastDomains}`;
+    line += ` | ${leaveStr}`;
     return line;
   };
 
@@ -280,17 +412,18 @@ const buildContext = (session, roster, employees, debateHistory, extraNote, miss
 - Timeline: ${months} months
 - Industry: ${session.industry}
 - Agents: ${roster.join(', ')}
-- Estimated team size needed for this project: ~${estimatedDevs} developers (budget ÷ $14k/dev/month)
-  IMPORTANT: Evaluate whether ${estimatedDevs} suitable developers are available — do NOT suggest staffing the entire bench.
+- Estimated team size: ~${estimatedDevs} developers (budget ÷ $14k/dev/month)
+  IMPORTANT: Evaluate whether ${estimatedDevs} suitable developers are available — do NOT staff the entire bench.
 
 EMPLOYEE ROSTER (${employees.length} total):
-Available for new work (${available.length})${hipaaDevs.length ? ` — HIPAA-certified: ${hipaaDevs.length}` : ''}:
-${available.length > 0 ? available.map(fmtEmp).join('\n') : '  (none available — all staff are currently engaged on active projects)'}
 
-Currently engaged on active projects (${engaged.length}):
+AVAILABLE for new work (${available.length})${hipaaDevs.length ? ` — HIPAA-certified: ${hipaaDevs.length}` : ''}:
+${available.length > 0 ? available.map(fmtEmp).join('\n') : '  (none available — all staff are currently engaged)'}
+
+CURRENTLY ENGAGED on active projects (${engaged.length}):
 ${engaged.length > 0 ? engaged.map(fmtEmp).join('\n') : '  (none engaged)'}
 
-Tech stack coverage: ${allSkills.length > 0 ? allSkills.join(', ') : 'N/A'}
+Full tech stack coverage: ${allSkills.length > 0 ? allSkills.join(', ') : 'N/A'}
 
 TRANSCRIPT:
 ${historyText}
@@ -304,7 +437,7 @@ Provide your assessment:`;
 
 const runDebateAsync = async (session, roster, emitter, pool, missionBriefing = null) => {
   const sessionId = session.id;
-  const employees = await getEmployeesFromDB(pool);
+  const employees = await getEmployeesFromDB(pool, parseInt(session.timeline_months) || 6);
   const debateHistory = [];
 
   const emit = (event, data) => emitter.emit(`${event}:${sessionId}`, data);
@@ -329,7 +462,6 @@ const runDebateAsync = async (session, roster, emitter, pool, missionBriefing = 
     return messageText;
   };
 
-  // Per-agent flag status — emitted with done event so frontend shows accurate badges
   const agentFlags = {};
 
   try {
@@ -347,11 +479,11 @@ const runDebateAsync = async (session, roster, emitter, pool, missionBriefing = 
                         rL.includes('no available') || rL.includes('shortfall') ||
                         rL.includes('cannot staff') || rL.includes('no developers') ||
                         rL.includes('0 developers') || rL.includes('not enough') ||
-                        rL.includes('insufficient') || rL.includes('resolve before');
+                        rL.includes('insufficient') || rL.includes('resolve before') ||
+                        rL.includes('leave gap') || rL.includes('leave conflict');
       agentFlags['Resource'] = resourceFlagged ? 'flagged' : 'approved';
     }
 
-    // Technical Architect
     let techFlagged = false;
     if (roster.includes('Technical Architect')) {
       const techMsg = await runAgent('Technical Architect', 1);
@@ -360,11 +492,11 @@ const runDebateAsync = async (session, roster, emitter, pool, missionBriefing = 
                     lower.includes('blocker') || lower.includes('concern') ||
                     lower.includes('insufficient') || lower.includes('too short') ||
                     lower.includes('aggressive') || lower.includes('cannot') ||
-                    lower.includes('flagging') || lower.includes('high delivery risk');
+                    lower.includes('flagging') || lower.includes('high delivery risk') ||
+                    lower.includes('continuity risk') || lower.includes('experience gap');
       agentFlags['Technical Architect'] = techFlagged ? 'conditional' : 'approved';
     }
 
-    // Risk Analyst
     let riskFlagged = false;
     if (roster.includes('Risk Analyst')) {
       const riskMsg = await runAgent('Risk Analyst', 1);
@@ -375,7 +507,6 @@ const runDebateAsync = async (session, roster, emitter, pool, missionBriefing = 
       agentFlags['Risk Analyst'] = riskFlagged ? 'conditional' : 'approved';
     }
 
-    // Operations Manager
     let opsConcern = false;
     if (roster.includes('Operations Manager')) {
       const opsMsg = await runAgent('Operations Manager', 1);
@@ -414,28 +545,28 @@ const runDebateAsync = async (session, roster, emitter, pool, missionBriefing = 
     const anyFlagged = financeFlagged || legalFlagged || techFlagged || riskFlagged || resourceFlagged;
     if (anyFlagged) {
       const issues = [];
-      if (resourceFlagged) issues.push('Resource Manager flagged insufficient available staff');
-      if (financeFlagged) issues.push('budget flagged as financially unviable');
-      if (legalFlagged) issues.push('unresolved regulatory compliance concerns');
-      if (techFlagged) issues.push('Technical Architect raised feasibility/timeline concerns');
-      if (riskFlagged) issues.push('Risk Analyst flagged HIGH or CRITICAL risk profile');
+      if (resourceFlagged) issues.push('Resource Manager flagged insufficient available staff or leave conflicts');
+      if (financeFlagged)  issues.push('budget flagged as financially unviable');
+      if (legalFlagged)    issues.push('unresolved regulatory compliance concerns');
+      if (techFlagged)     issues.push('Technical Architect raised feasibility, experience, or continuity concerns');
+      if (riskFlagged)     issues.push('Risk Analyst flagged HIGH or CRITICAL risk profile');
 
       if (roster.includes('Account Executive')) {
         await runAgent('Account Executive', 2,
           `Concerns raised: ${issues.join('; ')}. Propose a concrete counter-offer and revised terms.`);
-        agentFlags['Account Executive'] = 'approved'; // AE always advocates
+        agentFlags['Account Executive'] = 'approved';
       }
 
       if (financeFlagged && roster.includes('Financial')) {
         await runAgent('Financial', 2,
           'Account Executive proposed revised terms. Does the counter-offer resolve the financial concern?');
-        agentFlags['Financial'] = 'conditional'; // negotiated — conditions placed
+        agentFlags['Financial'] = 'conditional';
       }
 
       if (legalFlagged && roster.includes('Legal')) {
         await runAgent('Legal', 2,
           'Account Executive proposed compliance remediation. Are these measures sufficient?');
-        agentFlags['Legal'] = 'conditional'; // conditions placed but not hard-blocked
+        agentFlags['Legal'] = 'conditional';
       }
     }
 
@@ -448,7 +579,6 @@ const runDebateAsync = async (session, roster, emitter, pool, missionBriefing = 
     if (boardMsg.includes('[VERDICT: NO-GO]') || /\bno.go\b/i.test(boardMsg)) verdict = 'NO-GO';
     else if (boardMsg.includes('[VERDICT: NEGOTIATE]') || /\bnegotiate\b/i.test(boardMsg)) verdict = 'NEGOTIATE';
 
-    // If board says GO, all conditionals get cleared
     if (verdict === 'GO') {
       Object.keys(agentFlags).forEach(k => {
         if (agentFlags[k] === 'conditional') agentFlags[k] = 'approved';

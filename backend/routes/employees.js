@@ -23,7 +23,8 @@ const upload = multer({
 
 // Canonical column keys expected in the uploaded file
 const REQUIRED_COLS = ['employee_name', 'designation', 'email', 'date_of_joining'];
-const ALL_COLS = [...REQUIRED_COLS, 'current_projects', 'past_projects', 'tech_stack'];
+// upcoming_leaves format: YYYY-MM-DD:YYYY-MM-DD;YYYY-MM-DD:YYYY-MM-DD (start:end pairs, semicolon-separated)
+const ALL_COLS = [...REQUIRED_COLS, 'current_projects', 'past_projects', 'tech_stack', 'upcoming_leaves'];
 
 function normaliseHeader(h) {
   return String(h).trim().toLowerCase()
@@ -36,18 +37,37 @@ function splitSemicolon(val) {
   return String(val || '').split(';').map(s => s.trim()).filter(Boolean);
 }
 
+// Parse semicolon-separated start:end leave pairs, e.g. "2026-07-01:2026-07-10;2026-09-05:2026-09-05"
+function parseLeaves(val) {
+  return String(val || '').split(';')
+    .map(s => s.trim())
+    .filter(Boolean)
+    .map(pair => {
+      const [start, end] = pair.split(':').map(d => d.trim());
+      if (!start) return null;
+      const startD = new Date(start);
+      const endD   = end ? new Date(end) : startD;
+      if (isNaN(startD.getTime()) || isNaN(endD.getTime())) return null;
+      return {
+        start_date: startD.toISOString().split('T')[0],
+        end_date:   endD.toISOString().split('T')[0],
+      };
+    })
+    .filter(Boolean);
+}
+
 // GET /api/employees/template  — returns a pre-filled XLSX template
 router.get('/template', authenticateJWT, (_req, res) => {
   const wb = XLSX.utils.book_new();
   const rows = [
     ALL_COLS,
-    ['Archishman Ghosh',  'Security Guard',   'aghosh@argusoft.com', '2023-01-15', 'Argusoft Gate', 'Meghdoot',          'Angular;Node.js;PostgreSQL'],
-    ['Diganta Banik',    'Software Engineer',   'dbanik@argusoft.com',   '2022-06-01', 'Meghdoot',          'Reporting;Testing', 'Jira;Confluence'],
-    ['Sankalan Chanda', 'Senior Engineer',   'schanda@argusoft.com','2024-03-10', 'Meghdoot',             '',                        'Docker;Kubernetes;Terraform'],
-    ['Samrat Mondal', 'Vice President',   'smondal@argusoft.com','2024-03-10', 'EMS',             'MMS',                        'HTML;CSS;']
+    ['Archishman Ghosh',  'Security Guard',     'aghosh@argusoft.com',  '2023-01-15', 'Argusoft Gate', 'Meghdoot',          'Angular;Node.js;PostgreSQL', ''],
+    ['Diganta Banik',    'Software Engineer',   'dbanik@argusoft.com',   '2022-06-01', 'Meghdoot',     'Reporting;Testing', 'Jira;Confluence',            '2026-07-01:2026-07-10'],
+    ['Sankalan Chanda',  'Senior Engineer',     'schanda@argusoft.com',  '2024-03-10', 'Meghdoot',     '',                  'Docker;Kubernetes;Terraform', ''],
+    ['Samrat Mondal',    'Vice President',      'smondal@argusoft.com',  '2024-03-10', 'EMS',          'MMS',               'HTML;CSS',                   '2026-08-15:2026-08-22;2026-09-01:2026-09-05'],
   ];
   const ws = XLSX.utils.aoa_to_sheet(rows);
-  ws['!cols'] = [22, 22, 32, 24, 38, 38, 32].map(wch => ({ wch }));
+  ws['!cols'] = [22, 22, 32, 24, 38, 38, 32, 44].map(wch => ({ wch }));
   XLSX.utils.book_append_sheet(wb, ws, 'Employees');
 
   const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
@@ -105,9 +125,10 @@ router.post('/import', authenticateJWT, (req, res) => {
       const rawEmail    = String(row[idx.email]           ?? '').trim();
       const email       = rawEmail.toLowerCase();
       const dateRaw     = String(row[idx.date_of_joining] ?? '').trim();
-      const curProjs    = splitSemicolon(idx.current_projects !== -1 ? row[idx.current_projects] : '');
-      const pastProjs   = splitSemicolon(idx.past_projects    !== -1 ? row[idx.past_projects]    : '');
-      const techStack   = splitSemicolon(idx.tech_stack       !== -1 ? row[idx.tech_stack]       : '');
+      const curProjs    = splitSemicolon(idx.current_projects  !== -1 ? row[idx.current_projects]  : '');
+      const pastProjs   = splitSemicolon(idx.past_projects     !== -1 ? row[idx.past_projects]     : '');
+      const techStack   = splitSemicolon(idx.tech_stack        !== -1 ? row[idx.tech_stack]        : '');
+      const leaves      = parseLeaves(  idx.upcoming_leaves   !== -1 ? row[idx.upcoming_leaves]   : '');
 
       const rowErr = [];
 
@@ -139,7 +160,7 @@ router.post('/import', authenticateJWT, (req, res) => {
       if (rowErr.length) {
         errors.push(...rowErr);
       } else {
-        parsed.push({ rowNum, name, designation, email, date_of_joining: parsedDate, curProjs, pastProjs, techStack });
+        parsed.push({ rowNum, name, designation, email, date_of_joining: parsedDate, curProjs, pastProjs, techStack, leaves });
       }
     }
 
@@ -208,6 +229,14 @@ router.post('/import', authenticateJWT, (req, res) => {
           await client.query(
             'INSERT INTO employee_projects (employee_id, project_id, project_type) VALUES ($1,$2,\'past\') ON CONFLICT DO NOTHING',
             [empId, pId]
+          );
+        }
+
+        for (const leave of r.leaves) {
+          await client.query(
+            `INSERT INTO employee_leaves (employee_id, start_date, end_date, leave_type, status)
+             VALUES ($1, $2, $3, 'planned', 'approved')`,
+            [empId, leave.start_date, leave.end_date]
           );
         }
 
