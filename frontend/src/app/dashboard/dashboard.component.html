@@ -3,13 +3,6 @@
   <div class="flex items-center gap-sm">
     <span class="material-symbols-outlined text-3xl text-primary neon-text-primary">forum</span>
     <span class="font-display-lg text-headline-md font-bold text-primary tracking-tight neon-text-primary">Boardroom</span>
-    <button
-      (click)="showImportModal = true"
-      class="ml-sm flex items-center gap-xs py-1.5 px-sm rounded-lg bg-white/5 border border-white/10 text-on-surface-variant hover:text-primary hover:border-primary/30 hover:bg-primary/5 transition-all text-[12px] font-semibold"
-      title="Import employees from CSV or XLSX">
-      <span class="material-symbols-outlined text-[17px]">upload_file</span>
-      Import Employees
-    </button>
   </div>
   
   <!-- Navigation Tabs -->
@@ -47,7 +40,7 @@
 </nav>
 
 <!-- Employee Import Modal -->
-<app-import-modal [isOpen]="showImportModal" (closed)="showImportModal = false"></app-import-modal>
+<app-import-modal [isOpen]="showImportModal" (closed)="showImportModal = false; loadEmployees()"></app-import-modal>
 
 <!-- Toast Notification -->
 <div *ngIf="toast"
@@ -114,7 +107,7 @@
         <span [class.hidden]="isSidebarCollapsed" class="text-sm font-medium whitespace-nowrap">Risk Matrix</span>
       </button>
       
-      <button class="w-full flex items-center gap-3 p-3 rounded-lg text-on-surface-variant hover:bg-white/5 hover:text-on-surface transition-colors mt-auto">
+      <button (click)="activeTab = 'settings'; loadCompanyDetails(); loadEmployees()" class="w-full flex items-center gap-3 p-3 rounded-lg text-on-surface-variant hover:bg-white/5 hover:text-on-surface transition-colors mt-auto" [class.bg-white_5]="activeTab === 'settings'" [class.border-l-2]="activeTab === 'settings'" [class.border-tertiary]="activeTab === 'settings'">
         <span class="material-symbols-outlined">settings</span>
         <span [class.hidden]="isSidebarCollapsed" class="text-sm font-medium whitespace-nowrap">Settings</span>
       </button>
@@ -894,6 +887,256 @@
         </div>
 
       </div>
+    </div>
+  </ng-container>
+
+  <!-- SETTINGS TAB VIEW -->
+  <ng-container *ngIf="activeTab === 'settings'">
+    <div class="flex-1 h-full overflow-y-auto p-gutter flex flex-col gap-gutter">
+      <!-- Header Area -->
+      <div class="flex flex-col gap-sm border-b border-white/10 pb-md">
+        <h1 class="font-display-lg text-3xl font-bold text-on-surface">Organisation & Team Management</h1>
+        <p class="text-on-surface-variant font-body-md text-sm">Configure company profile, financial snapshots, and manage your roster of registered employees.</p>
+      </div>
+
+      <div class="grid grid-cols-1 xl:grid-cols-3 gap-gutter items-start">
+        
+        <!-- Left Section: Company Details & Financials (takes 2/3 cols on xl) -->
+        <div class="xl:col-span-2 flex flex-col gap-gutter">
+          
+          <!-- Company Profile Card -->
+          <div class="glass-panel p-md rounded-xl flex flex-col gap-md">
+            <div class="flex items-center gap-sm border-b border-white/10 pb-sm">
+              <span class="material-symbols-outlined text-primary">corporate_fare</span>
+              <h2 class="font-headline-md text-headline-md text-on-surface">Company Profile</h2>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-md">
+              <div class="flex flex-col gap-xs">
+                <label class="font-label-md text-[13px] text-on-surface-variant">Company Name</label>
+                <input [(ngModel)]="companyDetails.name" class="glass-input rounded-lg p-sm font-body-md text-body-md" placeholder="e.g. Acme Corp">
+              </div>
+
+              <div class="flex flex-col gap-xs">
+                <label class="font-label-md text-[13px] text-on-surface-variant">Industry</label>
+                <select [(ngModel)]="companyDetails.industry" class="glass-input rounded-lg p-sm font-body-md text-body-md bg-surface-container-high">
+                  <option value="" disabled>Select Industry</option>
+                  <option *ngFor="let opt of industryOptions" [value]="opt">{{ opt }}</option>
+                </select>
+              </div>
+
+              <div class="flex flex-col gap-xs">
+                <label class="font-label-md text-[13px] text-on-surface-variant">Headquarters Address</label>
+                <input [(ngModel)]="companyDetails.address" class="glass-input rounded-lg p-sm font-body-md text-body-md" placeholder="e.g. San Francisco, CA">
+              </div>
+
+              <div class="flex flex-col gap-xs">
+                <label class="font-label-md text-[13px] text-on-surface-variant">Website URL</label>
+                <input [(ngModel)]="companyDetails.website" class="glass-input rounded-lg p-sm font-body-md text-body-md" placeholder="e.g. https://acme.com">
+              </div>
+
+              <div class="flex flex-col gap-xs">
+                <label class="font-label-md text-[13px] text-on-surface-variant">Registration / CIN Number</label>
+                <input [(ngModel)]="companyDetails.registration_number" class="glass-input rounded-lg p-sm font-body-md text-body-md" placeholder="e.g. U72200GJ1992PTC018122">
+              </div>
+
+              <div class="flex flex-col gap-xs">
+                <label class="font-label-md text-[13px] text-on-surface-variant">Size Category</label>
+                <select [(ngModel)]="companyDetails.size_category" class="glass-input rounded-lg p-sm font-body-md text-body-md bg-surface-container-high">
+                  <option *ngFor="let opt of sizeOptions" [value]="opt.value">{{ opt.label }}</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- Financial Snapshot Card -->
+          <div class="glass-panel p-md rounded-xl flex flex-col gap-md">
+            <div class="flex items-center gap-sm border-b border-white/10 pb-sm">
+              <span class="material-symbols-outlined text-primary">payments</span>
+              <h2 class="font-headline-md text-headline-md text-on-surface">Financial Snapshot</h2>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-md">
+              <div class="flex flex-col gap-xs">
+                <label class="font-label-md text-[13px] text-on-surface-variant">Fiscal Year</label>
+                <input type="number" [(ngModel)]="financialsDetails.fiscal_year" class="glass-input rounded-lg p-sm font-body-md text-body-md" placeholder="2026">
+              </div>
+
+              <div class="flex flex-col gap-xs">
+                <label class="font-label-md text-[13px] text-on-surface-variant">Annual Revenue</label>
+                <input type="number" [(ngModel)]="financialsDetails.annual_revenue" class="glass-input rounded-lg p-sm font-body-md text-body-md" placeholder="e.g. 50000000">
+              </div>
+
+              <div class="flex flex-col gap-xs">
+                <label class="font-label-md text-[13px] text-on-surface-variant">Working Capital</label>
+                <input type="number" [(ngModel)]="financialsDetails.working_capital" class="glass-input rounded-lg p-sm font-body-md text-body-md" placeholder="e.g. 10000000">
+              </div>
+
+              <div class="flex flex-col gap-xs">
+                <label class="font-label-md text-[13px] text-on-surface-variant">Total Outstanding Debt</label>
+                <input type="number" [(ngModel)]="financialsDetails.total_debt" class="glass-input rounded-lg p-sm font-body-md text-body-md" placeholder="e.g. 5000000">
+              </div>
+
+              <div class="flex flex-col gap-xs">
+                <label class="font-label-md text-[13px] text-on-surface-variant">Active Project Value</label>
+                <input type="number" [(ngModel)]="financialsDetails.active_project_value" class="glass-input rounded-lg p-sm font-body-md text-body-md" placeholder="e.g. 15000000">
+              </div>
+
+              <div class="flex flex-col gap-xs">
+                <label class="font-label-md text-[13px] text-on-surface-variant">Annual Payroll Cost</label>
+                <input type="number" [(ngModel)]="financialsDetails.annual_payroll" class="glass-input rounded-lg p-sm font-body-md text-body-md" placeholder="e.g. 20000000">
+              </div>
+
+              <div class="flex flex-col gap-xs">
+                <label class="font-label-md text-[13px] text-on-surface-variant">Overhead Rate (%)</label>
+                <input type="number" [(ngModel)]="financialsDetails.overhead_rate_percent" class="glass-input rounded-lg p-sm font-body-md text-body-md" placeholder="20">
+              </div>
+
+              <div class="flex flex-col gap-xs">
+                <label class="font-label-md text-[13px] text-on-surface-variant">Target Profit Margin (%)</label>
+                <input type="number" [(ngModel)]="financialsDetails.target_profit_margin_percent" class="glass-input rounded-lg p-sm font-body-md text-body-md" placeholder="15">
+              </div>
+
+              <div class="flex flex-col gap-xs">
+                <label class="font-label-md text-[13px] text-on-surface-variant">Max Single-Project Bid Limit</label>
+                <input type="number" [(ngModel)]="financialsDetails.max_bid_capacity_override" class="glass-input rounded-lg p-sm font-body-md text-body-md" placeholder="Optional override">
+              </div>
+            </div>
+          </div>
+
+          <!-- Save Button -->
+          <div class="flex justify-end gap-sm mb-gutter">
+            <button (click)="saveCompanyDetails()" [disabled]="savingCompanyDetails" class="px-6 py-2.5 rounded-lg bg-primary text-on-primary font-semibold hover:brightness-110 disabled:opacity-50 transition-all flex items-center gap-xs shadow-[0_0_15px_rgba(255,255,255,0.3)]">
+              <span *ngIf="savingCompanyDetails" class="material-symbols-outlined animate-spin text-[18px]">progress_activity</span>
+              <span *ngIf="!savingCompanyDetails" class="material-symbols-outlined text-[18px]">save</span>
+              Save Organisation Details
+            </button>
+          </div>
+
+        </div>
+
+        <!-- Right Section: Import Actions & Quick Summary (takes 1/3 col on xl) -->
+        <div class="flex flex-col gap-gutter">
+          
+          <!-- Bulk Import Employees Card -->
+          <div class="glass-panel p-md rounded-xl flex flex-col gap-md">
+            <div class="flex items-center gap-sm border-b border-white/10 pb-sm">
+              <span class="material-symbols-outlined text-primary">upload_file</span>
+              <h2 class="font-headline-md text-headline-md text-on-surface">Bulk Import</h2>
+            </div>
+            <p class="text-on-surface-variant font-body-md text-sm leading-relaxed">
+              Upload employees using a spreadsheet (.xlsx or .csv). Follow our import template structure exactly to configure assignments and stacks.
+            </p>
+            <div class="flex flex-col gap-sm mt-sm">
+              <button (click)="showImportModal = true" class="w-full py-2.5 px-4 rounded-lg bg-tertiary text-on-tertiary font-semibold hover:brightness-110 transition-all flex items-center justify-center gap-2 shadow-[0_0_15px_rgba(255,255,255,0.3)]">
+                <span class="material-symbols-outlined text-[18px]">upload</span>
+                Import Employees
+              </button>
+              <button (click)="downloadTemplate()" class="w-full py-2.5 px-4 rounded-lg border border-white/10 text-on-surface hover:bg-white/5 transition-all flex items-center justify-center gap-2">
+                <span class="material-symbols-outlined text-[18px]">download</span>
+                Download Excel Template
+              </button>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+
+      <!-- Bottom Roster Section (Full width) -->
+      <div class="glass-panel p-md rounded-xl flex flex-col gap-md mb-8">
+        <div class="flex justify-between items-center border-b border-white/10 pb-sm">
+          <div class="flex items-center gap-sm">
+            <span class="material-symbols-outlined text-primary">groups</span>
+            <h2 class="font-headline-md text-headline-md text-on-surface">Registered Employee Roster</h2>
+          </div>
+          <span class="px-3 py-1 rounded-full bg-white/5 border border-white/10 font-label-md text-label-md text-primary font-bold">
+            {{ employeesList.length }} Employee(s)
+          </span>
+        </div>
+
+        <!-- Cleaned up table -->
+        <div class="overflow-x-auto w-full rounded-lg border border-white/10 bg-surface-container-lowest/50">
+          <table class="w-full border-collapse text-left">
+            <thead>
+              <tr class="border-b border-white/10 bg-white/5 font-label-md text-label-md text-on-surface-variant">
+                <th class="p-4 font-semibold">Employee</th>
+                <th class="p-4 font-semibold">Email</th>
+                <th class="p-4 font-semibold">Date of Joining</th>
+                <th class="p-4 font-semibold">Tech Stack</th>
+                <th class="p-4 font-semibold">Associated Projects</th>
+                <th class="p-4 font-semibold">Upcoming Leaves</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-white/5 font-body-md text-body-md text-on-surface">
+              <tr *ngFor="let emp of employeesList" class="hover:bg-white/[0.02] transition-colors">
+                <!-- Employee Info -->
+                <td class="p-4">
+                  <div class="flex flex-col">
+                    <span class="font-semibold text-on-surface">{{ emp.name }}</span>
+                    <span class="text-xs text-on-surface-variant mt-0.5">{{ emp.designation }}</span>
+                  </div>
+                </td>
+                
+                <!-- Email -->
+                <td class="p-4 text-on-surface-variant font-mono text-xs">{{ emp.email }}</td>
+                
+                <!-- DOJ -->
+                <td class="p-4">{{ emp.date_of_joining | date:'mediumDate' }}</td>
+                
+                <!-- Tech Stack -->
+                <td class="p-4">
+                  <div class="flex flex-wrap gap-1 max-w-[220px]">
+                    <span *ngFor="let tech of emp.tech_stack" class="px-2 py-0.5 rounded text-[10px] bg-primary/10 border border-primary/20 text-primary-container font-semibold">
+                      {{ tech }}
+                    </span>
+                    <span *ngIf="!emp.tech_stack || emp.tech_stack.length === 0" class="text-xs text-on-surface-variant italic">
+                      None
+                    </span>
+                  </div>
+                </td>
+                
+                <!-- Projects -->
+                <td class="p-4">
+                  <div class="flex flex-col gap-1 max-w-[240px]">
+                    <div *ngFor="let proj of emp.projects" class="flex items-center gap-1.5">
+                      <span [ngClass]="proj.type === 'current' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-blue-500/20 text-blue-400 border-blue-500/30'" class="px-1.5 py-0.5 rounded text-[9px] uppercase font-bold border shrink-0">
+                        {{ proj.type }}
+                      </span>
+                      <span class="text-xs text-on-surface truncate" [title]="proj.name">{{ proj.name }}</span>
+                    </div>
+                    <span *ngIf="!emp.projects || emp.projects.length === 0" class="text-xs text-on-surface-variant italic">
+                      No Projects Assigned
+                    </span>
+                  </div>
+                </td>
+                
+                <!-- Leaves -->
+                <td class="p-4">
+                  <div class="flex flex-col gap-1 max-w-[220px]">
+                    <div *ngFor="let leave of emp.leaves" class="flex flex-col bg-white/5 border border-white/10 rounded p-1 text-[11px]">
+                      <div class="flex justify-between font-semibold">
+                        <span class="text-amber-400 uppercase text-[9px]">{{ leave.leave_type }}</span>
+                        <span class="text-on-surface-variant text-[9px] capitalize">{{ leave.status }}</span>
+                      </div>
+                      <span class="text-on-surface mt-0.5 font-mono">{{ leave.start_date | date:'shortDate' }} to {{ leave.end_date | date:'shortDate' }}</span>
+                    </div>
+                    <span *ngIf="!emp.leaves || emp.leaves.length === 0" class="text-xs text-on-surface-variant italic">
+                      No Leave Planned
+                    </span>
+                  </div>
+                </td>
+              </tr>
+              <tr *ngIf="employeesList.length === 0">
+                <td colspan="6" class="p-8 text-center text-on-surface-variant italic">
+                  No employees registered yet. Use the "Import Employees" functionality above to seed your team.
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
     </div>
   </ng-container>
 

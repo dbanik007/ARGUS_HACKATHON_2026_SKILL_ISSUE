@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { HttpClient, HttpClientModule, HttpHeaders } from '@angular/common/http';
 import { Router } from '@angular/router';
 import { ImportModalComponent } from '../import-modal/import-modal.component';
+import { EmployeeService } from '../services/employee.service';
 
 interface DebateMessage {
   sender: string;
@@ -137,7 +138,7 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
   debateMessages: DebateMessage[] = [];
   currentTypingAgent: string | null = null;
   evaluating: boolean = false;
-  activeTab: 'console' | 'history' | 'training' = 'console';
+  activeTab: 'console' | 'history' | 'training' | 'settings' = 'console';
   agentConfigs: any = null;
   isSidebarCollapsed: boolean = false;
   missionBriefing: string = '';
@@ -151,6 +152,54 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
 
   // Historical sessions
   historyList: EvaluationSession[] = [];
+
+  // Company & Financials details (for settings)
+  companyDetails: any = {
+    name: '',
+    industry: '',
+    address: '',
+    website: '',
+    registration_number: '',
+    size_category: 'medium'
+  };
+
+  financialsDetails: any = {
+    fiscal_year: new Date().getFullYear(),
+    annual_revenue: 0,
+    working_capital: 0,
+    total_debt: 0,
+    active_project_value: 0,
+    annual_payroll: 0,
+    overhead_rate_percent: 20,
+    target_profit_margin_percent: 15,
+    max_bid_capacity_override: null
+  };
+
+  employeesList: any[] = [];
+  savingCompanyDetails: boolean = false;
+
+  readonly industryOptions = [
+    'Information Technology',
+    'Healthcare',
+    'Finance & Banking',
+    'Manufacturing',
+    'Retail & E-Commerce',
+    'Education',
+    'Construction & Infrastructure',
+    'Energy & Utilities',
+    'Telecommunications',
+    'Government & Public Sector',
+    'Consulting',
+    'Other'
+  ];
+
+  readonly sizeOptions = [
+    { value: 'startup',    label: 'Startup (1–10 employees)' },
+    { value: 'small',      label: 'Small (11–50 employees)' },
+    { value: 'medium',     label: 'Medium (51–250 employees)' },
+    { value: 'large',      label: 'Large (251–1000 employees)' },
+    { value: 'enterprise', label: 'Enterprise (1000+ employees)' }
+  ];
 
   // Import modal
   showImportModal = false;
@@ -176,7 +225,15 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
   backendUrl = 'http://localhost:3000';
   private eventSource: EventSource | null = null;
 
-  constructor(private http: HttpClient, private router: Router) {}
+  constructor(
+    private http: HttpClient,
+    private router: Router,
+    public employeeService: EmployeeService
+  ) {}
+
+  downloadTemplate(): void {
+    this.employeeService.downloadTemplate();
+  }
 
   ngOnInit(): void {
     const token = localStorage.getItem('token');
@@ -192,15 +249,17 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
     if (this.isDarkMode) {
       htmlEl.classList.remove('light');
       htmlEl.classList.add('dark');
+      localStorage.setItem('theme', 'dark');
     } else {
       htmlEl.classList.remove('dark');
       htmlEl.classList.add('light');
+      localStorage.setItem('theme', 'light');
     }
 
     // Load User Profile
     const headers = new HttpHeaders().set('Authorization', `Bearer ${token}`);
     this.http.get<any>(`${this.backendUrl}/api/auth/me`, { headers }).subscribe({
-      next: (user) => {
+      next: (user: any) => {
         this.currentUser = user;
       },
       error: () => {
@@ -211,6 +270,55 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
     // Load Session History
     this.loadHistory(true);
     this.loadAgentConfigs();
+    this.loadCompanyDetails();
+    this.loadEmployees();
+  }
+
+  loadCompanyDetails(): void {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    const headers = new HttpHeaders().set('Authorization', `Bearer ${token}`);
+    this.http.get<any>(`${this.backendUrl}/api/onboarding/company`, { headers }).subscribe({
+      next: (data: any) => {
+        if (data.company) this.companyDetails = data.company;
+        if (data.financials) this.financialsDetails = data.financials;
+      },
+      error: (err: any) => {
+        console.error('Failed to load company details:', err);
+      }
+    });
+  }
+
+  saveCompanyDetails(): void {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    this.savingCompanyDetails = true;
+    const headers = new HttpHeaders().set('Authorization', `Bearer ${token}`);
+    this.http.put<any>(`${this.backendUrl}/api/onboarding/company`, { ...this.companyDetails, ...this.financialsDetails }, { headers }).subscribe({
+      next: () => {
+        this.savingCompanyDetails = false;
+        this.showToast('Organisation details updated successfully.');
+      },
+      error: (err: any) => {
+        this.savingCompanyDetails = false;
+        console.error('Failed to save company details:', err);
+        this.showToast(err.error?.error || 'Failed to update organisation details.', 'error');
+      }
+    });
+  }
+
+  loadEmployees(): void {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    const headers = new HttpHeaders().set('Authorization', `Bearer ${token}`);
+    this.http.get<any[]>(`${this.backendUrl}/api/employees`, { headers }).subscribe({
+      next: (data: any[]) => {
+        this.employeesList = data;
+      },
+      error: (err: any) => {
+        console.error('Failed to load employees:', err);
+      }
+    });
   }
 
   loadAgentConfigs(): void {
@@ -218,10 +326,10 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
     if (!token) return;
     const headers = new HttpHeaders().set('Authorization', `Bearer ${token}`);
     this.http.get<any>(`${this.backendUrl}/api/agents/config`, { headers }).subscribe({
-      next: (data) => {
+      next: (data: any) => {
         this.agentConfigs = data;
       },
-      error: (err) => {
+      error: (err: any) => {
         console.error('Failed to load agent configs:', err);
       }
     });
@@ -232,11 +340,11 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
     if (!token) return;
     const headers = new HttpHeaders().set('Authorization', `Bearer ${token}`);
     this.http.put<any>(`${this.backendUrl}/api/agents/config`, this.agentConfigs, { headers }).subscribe({
-      next: (data) => {
+      next: (data: any) => {
         this.agentConfigs = data.configs;
         this.showToast('Agent configuration deployed successfully.');
       },
-      error: (err) => {
+      error: (err: any) => {
         console.error('Failed to save agent configs:', err);
         this.showToast('Failed to deploy configuration. Please try again.', 'error');
       }
@@ -299,13 +407,13 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
 
     const headers = new HttpHeaders().set('Authorization', `Bearer ${token}`);
     this.http.get<any>(`${this.backendUrl}/api/evaluation/session/${session.id}`, { headers }).subscribe({
-      next: (data) => {
+      next: (data: any) => {
         if (this.activeSession && this.activeSession.id === session.id) {
           this.debateMessages = data.messages;
           this.setupSSEStream(session.id);
         }
       },
-      error: (err) => {
+      error: (err: any) => {
         this.evaluating = false;
         console.error('Failed to restore pending session:', err);
       }
@@ -351,11 +459,11 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
 
     const headers = new HttpHeaders().set('Authorization', `Bearer ${token}`);
     this.http.post<EvaluationSession>(`${this.backendUrl}/api/evaluation/start`, body, { headers }).subscribe({
-      next: (session) => {
+      next: (session: EvaluationSession) => {
         this.activeSession = { ...session, final_verdict: 'EVALUATING' };
         this.setupSSEStream(session.id);
       },
-      error: (err) => {
+      error: (err: any) => {
         this.evaluating = false;
         console.error('Failed to start evaluation:', err);
         const errMsg = err.error?.error || 'Could not start evaluation. Please verify database connection.';
@@ -401,7 +509,7 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
       this.loadHistory(); // Reload history pane
     });
 
-    this.eventSource.onerror = (err) => {
+    this.eventSource.onerror = (err: any) => {
       console.error('SSE connection error:', err);
       if (this.eventSource) {
         this.eventSource.close();
@@ -421,14 +529,14 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
 
     const headers = new HttpHeaders().set('Authorization', `Bearer ${token}`);
     this.http.get<any>(`${this.backendUrl}/api/evaluation/session/${session.id}`, { headers }).subscribe({
-      next: (data) => {
+      next: (data: any) => {
         this.activeSession = data.session;
         this.debateMessages = data.messages;
         this.currentTypingAgent = null;
         this.activeTab = 'console';
         this.verdictCollapsed = false;
       },
-      error: (err) => {
+      error: (err: any) => {
         console.error('Failed to load session details:', err);
       }
     });

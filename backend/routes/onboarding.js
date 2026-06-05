@@ -101,4 +101,126 @@ router.post('/company', authenticateJWT, async (req, res) => {
   }
 });
 
+// GET /api/onboarding/company — fetch company + financials details
+router.get('/company', authenticateJWT, async (req, res) => {
+  try {
+    const { rows: companyUser } = await pool.query(
+      'SELECT company_id FROM company_users WHERE user_id = $1 LIMIT 1',
+      [req.user.id]
+    );
+    if (companyUser.length === 0) {
+      return res.status(404).json({ error: 'Company not found' });
+    }
+    const companyId = companyUser[0].company_id;
+
+    const { rows: company } = await pool.query(
+      'SELECT * FROM companies WHERE id = $1',
+      [companyId]
+    );
+
+    const { rows: financials } = await pool.query(
+      'SELECT * FROM company_financials WHERE company_id = $1 ORDER BY fiscal_year DESC LIMIT 1',
+      [companyId]
+    );
+
+    res.json({
+      company: company[0],
+      financials: financials[0] || null
+    });
+  } catch (err) {
+    console.error('Failed to fetch company details:', err);
+    res.status(500).json({ error: 'Failed to fetch company details' });
+  }
+});
+
+// PUT /api/onboarding/company — update company + financials
+router.put('/company', authenticateJWT, async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const {
+      name, industry, address, website, registration_number, size_category,
+      fiscal_year, annual_revenue, working_capital, total_debt,
+      active_project_value, annual_payroll, overhead_rate_percent,
+      target_profit_margin_percent, max_bid_capacity_override
+    } = req.body;
+
+    const missing = [];
+    if (!name?.trim())                                    missing.push('name');
+    if (annual_revenue == null || annual_revenue === '')  missing.push('annual_revenue');
+    if (working_capital == null || working_capital === '') missing.push('working_capital');
+    if (annual_payroll  == null || annual_payroll  === '') missing.push('annual_payroll');
+
+    if (missing.length > 0) {
+      return res.status(400).json({ error: `Missing required fields: ${missing.join(', ')}` });
+    }
+
+    const { rows: companyUser } = await client.query(
+      'SELECT company_id FROM company_users WHERE user_id = $1 LIMIT 1',
+      [req.user.id]
+    );
+    if (companyUser.length === 0) {
+      return res.status(404).json({ error: 'Company not found' });
+    }
+    const companyId = companyUser[0].company_id;
+
+    await client.query('BEGIN');
+
+    // Update company
+    await client.query(
+      `UPDATE companies
+       SET name = $1, industry = $2, address = $3, website = $4, registration_number = $5, size_category = $6
+       WHERE id = $7`,
+      [
+        name.trim(),
+        industry || null,
+        address || null,
+        website || null,
+        registration_number || null,
+        size_category || 'medium',
+        companyId
+      ]
+    );
+
+    // Upsert or update financials (for the given fiscal year)
+    const fYear = fiscal_year ? parseInt(fiscal_year, 10) : new Date().getFullYear();
+    await client.query(
+      `INSERT INTO company_financials
+         (company_id, fiscal_year, annual_revenue, working_capital, total_debt,
+          active_project_value, annual_payroll, overhead_rate_percent,
+          target_profit_margin_percent, max_bid_capacity_override)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+       ON CONFLICT (company_id, fiscal_year) DO UPDATE SET
+         annual_revenue = EXCLUDED.annual_revenue,
+         working_capital = EXCLUDED.working_capital,
+         total_debt = EXCLUDED.total_debt,
+         active_project_value = EXCLUDED.active_project_value,
+         annual_payroll = EXCLUDED.annual_payroll,
+         overhead_rate_percent = EXCLUDED.overhead_rate_percent,
+         target_profit_margin_percent = EXCLUDED.target_profit_margin_percent,
+         max_bid_capacity_override = EXCLUDED.max_bid_capacity_override`,
+      [
+        companyId,
+        fYear,
+        parseFloat(annual_revenue),
+        parseFloat(working_capital),
+        parseFloat(total_debt ?? 0),
+        parseFloat(active_project_value ?? 0),
+        parseFloat(annual_payroll),
+        parseFloat(overhead_rate_percent ?? 20),
+        parseFloat(target_profit_margin_percent ?? 15),
+        max_bid_capacity_override ? parseFloat(max_bid_capacity_override) : null
+      ]
+    );
+
+    await client.query('COMMIT');
+    res.json({ success: true });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('Company update failed:', err);
+    res.status(500).json({ error: 'Company update failed' });
+  } finally {
+    client.release();
+  }
+});
+
 module.exports = router;

@@ -267,4 +267,51 @@ router.post('/import', authenticateJWT, (req, res) => {
   });
 });
 
+// GET /api/employees — list employees for the current user's company
+router.get('/', authenticateJWT, async (req, res) => {
+  try {
+    const { rows: companyUser } = await pool.query(
+      'SELECT company_id FROM company_users WHERE user_id = $1 LIMIT 1',
+      [req.user.id]
+    );
+    const companyId = companyUser.length > 0 ? companyUser[0].company_id : null;
+
+    const query = `
+      SELECT 
+        e.id, 
+        e.name, 
+        e.designation, 
+        e.email, 
+        e.date_of_joining,
+        COALESCE(
+          json_agg(DISTINCT t.name) FILTER (WHERE t.name IS NOT NULL),
+          '[]'
+        ) as tech_stack,
+        COALESCE(
+          json_agg(DISTINCT jsonb_build_object('name', p.name, 'type', ep.project_type)) FILTER (WHERE p.name IS NOT NULL),
+          '[]'
+        ) as projects,
+        COALESCE(
+          json_agg(DISTINCT jsonb_build_object('id', l.id, 'start_date', l.start_date::text, 'end_date', l.end_date::text, 'leave_type', l.leave_type, 'status', l.status)) FILTER (WHERE l.id IS NOT NULL),
+          '[]'
+        ) as leaves
+      FROM employees e
+      LEFT JOIN employee_techstacks et ON e.id = et.employee_id
+      LEFT JOIN techstacks t ON et.techstack_id = t.id
+      LEFT JOIN employee_projects ep ON e.id = ep.employee_id
+      LEFT JOIN projects p ON ep.project_id = p.id
+      LEFT JOIN employee_leaves l ON e.id = l.employee_id
+      WHERE e.company_id = $1 OR (e.company_id IS NULL AND $1 IS NULL)
+      GROUP BY e.id
+      ORDER BY e.name ASC
+    `;
+    
+    const { rows: employees } = await pool.query(query, [companyId]);
+    res.json(employees);
+  } catch (err) {
+    console.error('Failed to fetch employees:', err);
+    res.status(500).json({ error: 'Failed to fetch employees' });
+  }
+});
+
 module.exports = router;
