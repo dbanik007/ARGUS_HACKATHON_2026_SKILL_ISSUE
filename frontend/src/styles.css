@@ -1,5 +1,13 @@
 @import "tailwindcss";
 
+button, [role="button"], select, input[type="range"], input[type="checkbox"], label[for], a {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
 @theme {
   --color-background: var(--background);
   --color-surface: var(--surface);

@@ -45,6 +45,7 @@ const updateConfigsForUser = async (pool, userId, newConfigs) => {
 
   for (const [agentName, cfg] of Object.entries(newConfigs)) {
     if (!DEFAULT_CONFIGS[agentName]) continue;
+    const directives = (cfg.customDirectives ?? '').slice(0, 500);
     await pool.query(
       `INSERT INTO agent_configs (user_id, agent_name, slider1, slider2, custom_directives, updated_at)
        VALUES ($1, $2, $3, $4, $5, NOW())
@@ -53,7 +54,7 @@ const updateConfigsForUser = async (pool, userId, newConfigs) => {
              slider2 = EXCLUDED.slider2,
              custom_directives = EXCLUDED.custom_directives,
              updated_at = NOW()`,
-      [userId, agentName, cfg.slider1 ?? 50, cfg.slider2 ?? 50, cfg.customDirectives ?? '']
+      [userId, agentName, cfg.slider1 ?? 50, cfg.slider2 ?? 50, directives]
     );
   }
 
