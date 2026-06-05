@@ -96,7 +96,7 @@ Respond in 3-5 sentences, then the verdict tag.`
 
 // ─── Smart fallback responses (context-aware, used when Gemini quota is exceeded) ─
 
-const buildFallback = (agentName, session, employees, debateHistory) => {
+const buildFallback = (agentName, session, employees, debateHistory, searchResults = []) => {
   const budget = Number(session.budget);
   const months = parseInt(session.timeline_months);
   const industry = (session.industry || '').toLowerCase();
@@ -117,6 +117,13 @@ const buildFallback = (agentName, session, employees, debateHistory) => {
     ? Math.max(...debateHistory.map(m => m.negotiation_round))
     : 1;
 
+  const negativeKeywords = ['lawsuit', 'sue', 'scam', 'fraud', 'settle', 'fine', 'investigate', 'complaint', 'court', 'guilty', 'prosecut', 'legal battle', 'dispute', 'controversy', 'negative'];
+  const negativeResults = searchResults.filter(r => {
+    const text = (r.title + ' ' + r.snippet).toLowerCase();
+    return negativeKeywords.some(kw => text.includes(kw));
+  });
+  const hasNegativeReputation = negativeResults.length > 0;
+
   const map = {
     'Account Executive': {
       1: `The opportunity from ${client} for "${project}" is exactly the strategic account we've been targeting in the ${session.industry} sector. Their proposed $${budget.toLocaleString()} investment over ${months} months aligns well with our current go-to-market focus. I'm confident in our ability to deliver and strongly advocate for a GO — we cannot afford to let this slip to a competitor.`,
@@ -135,12 +142,16 @@ const buildFallback = (agentName, session, employees, debateHistory) => {
       2: `Under the Account Executive's revised phased model, the technical risk drops significantly. Phase 1 as an MVP is architecturally sound — we focus on core modules and defer integrations to Phase 2. I can approve the revised delivery structure from a technical standpoint, provided we have a formal architecture review checkpoint at the end of Phase 1.`
     },
     'Legal': {
-      1: isHealthcare
+      1: hasNegativeReputation
+        ? `I must flag a critical reputational and legal concern for "${project}". A background check on ${client} revealed negative search results or active legal disputes: "${negativeResults[0].title} - ${negativeResults[0].snippet.slice(0, 120)}...". Proceeding with this client presents high litigation risks and brand damage potential. I am placing a strict conditional hold until a full due diligence audit is completed.`
+        : isHealthcare
         ? `"${project}" operates in a HIPAA-regulated environment — this is non-negotiable. All developers assigned must hold active HIPAA certification, and we require a signed Business Associate Agreement (BAA) from ${client} prior to any data access. ${hipaaDevs.length > 0 ? `We have ${hipaaDevs.length} certified developers available (${hipaaDevs.map(d => d.name).join(', ')}), so compliance is achievable, but contractual protections must be in place before go-live.` : `Currently, none of our available bench developers are HIPAA-certified — this is a blocking compliance risk that must be resolved.`}`
         : isFinance
         ? `"${project}" triggers PCI-DSS Level 1 and SOC 2 Type II obligations as a Financial Services engagement. All infrastructure must be certified and all code subject to independent security audits before production deployment. I recommend building compliance costs (~$15,000) into the contract and including a liability cap clause. Legal can approve subject to these contractual conditions.`
         : `Legal review of "${project}" is complete. Standard commercial IP terms apply — no elevated regulatory exposure detected. I recommend including a robust change-order process, IP ownership clauses, and a data-processing addendum. No compliance blockers identified. Cleared for GO from a legal standpoint.`,
-      2: `The Account Executive's revised proposal adequately addresses my primary concerns. Subject to the following conditions: (1) BAA signed before data ingestion, (2) all certified resources formally assigned in the SOW, and (3) a compliance audit milestone included in the delivery plan — Legal will withdraw its objection and approve the revised engagement.`
+      2: hasNegativeReputation
+        ? `While the Account Executive has proposed revised terms, the reputational risk regarding ${client}'s legal dispute ("${negativeResults[0].title}") remains unresolved. Legal will only approve this tender on the condition of a formal indemnity clause protecting us against any third-party liability and a full escrow payment structure. Until then, my stance remains Conditional.`
+        : `The Account Executive's revised proposal adequately addresses my primary concerns. Subject to the following conditions: (1) BAA signed before data ingestion, (2) all certified resources formally assigned in the SOW, and (3) a compliance audit milestone included in the delivery plan — Legal will withdraw its objection and approve the revised engagement.`
     },
     'Financial': {
       1: viable
@@ -177,7 +188,7 @@ const buildFallback = (agentName, session, employees, debateHistory) => {
 
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-const callGemini = async (agentName, contextPrompt, session, employees, debateHistory) => {
+const callGemini = async (agentName, contextPrompt, session, employees, debateHistory, searchResults = []) => {
   const apiKey = process.env.GEMINI_API_KEY;
 
   const configs = getConfigs();
@@ -204,10 +215,14 @@ const callGemini = async (agentName, contextPrompt, session, employees, debateHi
   if (apiKey) {
     try {
       const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({
+      const modelOptions = {
         model: 'gemini-2.5-flash',
         systemInstruction: systemInstruction
-      });
+      };
+      if (agentName === 'Legal') {
+        modelOptions.tools = [{ googleSearch: {} }];
+      }
+      const model = genAI.getGenerativeModel(modelOptions);
       const result = await model.generateContent(contextPrompt);
       return { text: result.response.text().trim(), source: 'gemini' };
     } catch (err) {
@@ -224,10 +239,14 @@ const callGemini = async (agentName, contextPrompt, session, employees, debateHi
 
           try {
             const genAI2 = new GoogleGenerativeAI(apiKey);
-            const model2 = genAI2.getGenerativeModel({
+            const model2Options = {
               model: 'gemini-2.0-flash',
               systemInstruction: systemInstruction
-            });
+            };
+            if (agentName === 'Legal') {
+              model2Options.tools = [{ googleSearch: {} }];
+            }
+            const model2 = genAI2.getGenerativeModel(model2Options);
             const result2 = await model2.generateContent(contextPrompt);
             return { text: result2.response.text().trim(), source: 'gemini' };
           } catch (retryErr) {
@@ -243,12 +262,12 @@ const callGemini = async (agentName, contextPrompt, session, employees, debateHi
   }
 
   // Fallback: context-aware synthesized response
-  return { text: buildFallback(agentName, session, employees, debateHistory), source: 'fallback' };
+  return { text: buildFallback(agentName, session, employees, debateHistory, searchResults), source: 'fallback' };
 };
 
 // ─── Context prompt builder ──────────────────────────────────────────────────
 
-const buildContext = (session, roster, employees, debateHistory, extraNote, missionBriefing) => {
+const buildContext = (agentName, session, roster, employees, debateHistory, extraNote, missionBriefing, searchResults = []) => {
   const available = employees.filter(e => e.available);
   const engaged   = employees.filter(e => !e.available);
   const hipaaDevs = employees.filter(e => e.hipaa_certified && e.available);
@@ -273,6 +292,13 @@ const buildContext = (session, roster, employees, debateHistory, extraNote, miss
   const months = parseInt(session.timeline_months);
   const estimatedDevs = Math.max(2, Math.ceil(budget / (months * 14000)));
 
+  let searchSection = '';
+  if (agentName === 'Legal' && searchResults && searchResults.length > 0) {
+    searchSection = `\n\nWEB SEARCH RESULTS FOR "${session.client_name}" / "${session.tender_name}":\n` +
+      searchResults.map((r, i) => `[Result ${i+1}] Title: ${r.title}\nSnippet: ${r.snippet}\nLink: ${r.link}`).join('\n\n') +
+      `\n\nINSTRUCTION: Analyze the above web search results for any legal issues, lawsuits, fraud allegations, negative reputation, or active disputes involving "${session.client_name}". If there are negative findings, you MUST explicitly mention them and raise a warning / flag a compliance risk.`;
+  }
+
   return `TENDER DETAILS:
 - Project: ${session.tender_name}
 - Client: ${session.client_name}
@@ -282,6 +308,7 @@ const buildContext = (session, roster, employees, debateHistory, extraNote, miss
 - Agents: ${roster.join(', ')}
 - Estimated team size needed for this project: ~${estimatedDevs} developers (budget ÷ $14k/dev/month)
   IMPORTANT: Evaluate whether ${estimatedDevs} suitable developers are available — do NOT suggest staffing the entire bench.
+${searchSection}
 
 EMPLOYEE ROSTER (${employees.length} total):
 Available for new work (${available.length})${hipaaDevs.length ? ` — HIPAA-certified: ${hipaaDevs.length}` : ''}:
@@ -302,18 +329,73 @@ Provide your assessment:`;
 
 // ─── Main debate orchestrator ────────────────────────────────────────────────
 
+const searchDuckDuckGo = async (query) => {
+  try {
+    const url = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
+    console.log(`[Search] Querying DuckDuckGo for: "${query}"`);
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36'
+      }
+    });
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    const html = await response.text();
+    const results = [];
+    const parts = html.split('class="result results_links results_links_deep web-result');
+    
+    for (let i = 1; i < parts.length && results.length < 5; i++) {
+      const part = parts[i];
+      
+      const titleMatch = part.match(/<a[^>]*class="result__a"[^>]*>([\s\S]*?)<\/a>/);
+      const title = titleMatch ? titleMatch[1].replace(/<[^>]*>/g, '').trim() : '';
+      
+      const snippetMatch = part.match(/<a[^>]*class="result__snippet"[^>]*>([\s\S]*?)<\/a>/);
+      const snippet = snippetMatch ? snippetMatch[1].replace(/<[^>]*>/g, '').trim() : '';
+      
+      const hrefMatch = part.match(/href="([^"]*)"/);
+      let link = '';
+      if (hrefMatch) {
+        const rawHref = hrefMatch[1];
+        if (rawHref.includes('uddg=')) {
+          const uddg = rawHref.split('uddg=')[1].split('&')[0];
+          link = decodeURIComponent(uddg);
+        } else {
+          link = 'https:' + rawHref;
+        }
+      }
+      
+      if (title || snippet) {
+        results.push({ title, snippet, link });
+      }
+    }
+    console.log(`[Search] Found ${results.length} web search results.`);
+    return results;
+  } catch (error) {
+    console.warn(`[Search] Error performing web search: ${error.message}`);
+    return [];
+  }
+};
+
 const runDebateAsync = async (session, roster, emitter, pool, missionBriefing = null) => {
   const sessionId = session.id;
   const employees = await getEmployeesFromDB(pool);
   const debateHistory = [];
+
+  let searchResults = [];
+  if (roster.includes('Legal')) {
+    const query = `${session.client_name} ${session.tender_name} lawsuit legal dispute reputation`;
+    searchResults = await searchDuckDuckGo(query);
+  }
 
   const emit = (event, data) => emitter.emit(`${event}:${sessionId}`, data);
 
   const runAgent = async (agentName, round, extraNote = '') => {
     emit('typing', { sender: agentName });
 
-    const contextPrompt = buildContext(session, roster, employees, debateHistory, extraNote, missionBriefing);
-    const { text: messageText } = await callGemini(agentName, contextPrompt, session, employees, debateHistory);
+    const contextPrompt = buildContext(agentName, session, roster, employees, debateHistory, extraNote, missionBriefing, searchResults);
+    const { text: messageText } = await callGemini(agentName, contextPrompt, session, employees, debateHistory, searchResults);
 
     const msg = { sender: agentName, message_text: messageText, negotiation_round: round };
     debateHistory.push(msg);
@@ -393,7 +475,11 @@ const runDebateAsync = async (session, roster, emitter, pool, missionBriefing = 
                      lower.includes('cannot approve') || lower.includes('blocking') ||
                      lower.includes('flagging') || lower.includes('prohibit') ||
                      lower.includes('must') || lower.includes('warning') ||
-                     lower.includes('no certified') || lower.includes('baa');
+                     lower.includes('no certified') || lower.includes('baa') ||
+                     lower.includes('reputation') || lower.includes('lawsuit') ||
+                     lower.includes('legal battle') || lower.includes('scam') ||
+                     lower.includes('court') || lower.includes('litigation') ||
+                     lower.includes('due diligence');
       agentFlags['Legal'] = legalFlagged ? 'conditional' : 'approved';
     }
 

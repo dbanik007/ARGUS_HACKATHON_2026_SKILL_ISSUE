@@ -470,17 +470,47 @@
           <div *ngIf="debateMessages.length > 0" class="flex flex-col gap-xs shrink-0">
             <h4 class="font-label-md text-[10px] uppercase text-on-surface-variant/60 tracking-wider">Agent Verdicts</h4>
             <div class="flex flex-col gap-1.5">
-              <div *ngFor="let stance of getAgentStances()" class="flex items-center justify-between gap-sm px-xs py-0.5 rounded hover:bg-white/3 transition-colors">
-                <div class="flex items-center gap-xs min-w-0">
-                  <div [class]="'w-1.5 h-1.5 rounded-full shrink-0 ' + getAgentDotClass(stance.agent)"></div>
-                  <span class="text-[11px] text-on-surface/80 font-medium truncate">{{ stance.agent }}</span>
+              <div *ngFor="let stance of getAgentStances()" 
+                   class="flex flex-col rounded hover:bg-white/[0.02] transition-colors border border-transparent"
+                   [class.border-white/5]="selectedStanceAgent === stance.agent"
+                   [class.bg-white/[0.02]]="selectedStanceAgent === stance.agent">
+                
+                <!-- Main Header Row -->
+                <div (click)="toggleAgentDropdown(stance.agent, stance.status)"
+                     class="flex items-center justify-between gap-sm px-2 py-1.5 cursor-pointer transition-all hover:scale-[1.01]"
+                     title="Click to toggle details">
+                  <div class="flex items-center gap-xs min-w-0">
+                    <div [class]="'w-1.5 h-1.5 rounded-full shrink-0 ' + getAgentDotClass(stance.agent)"></div>
+                    <span class="text-[11px] text-on-surface/80 font-medium truncate">{{ stance.agent }}</span>
+                    <!-- Chevron indicator -->
+                    <span class="material-symbols-outlined text-[14px] text-on-surface-variant/60 transition-transform duration-200"
+                          [class.rotate-180]="selectedStanceAgent === stance.agent">
+                      keyboard_arrow_down
+                    </span>
+                  </div>
+                  <span [class]="'text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border whitespace-nowrap shrink-0 ' +
+                                 (stance.status === 'approved' ? 'text-tertiary bg-tertiary/10 border-tertiary/20' :
+                                  stance.status === 'flagged' ? 'text-error bg-error/10 border-error/20' :
+                                  'text-amber-400 bg-amber-500/10 border-amber-500/20')">
+                    {{ stance.status === 'approved' ? 'Cleared' : stance.status === 'flagged' ? 'Flagged' : 'Conditional' }}
+                  </span>
                 </div>
-                <span [class]="'text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border whitespace-nowrap shrink-0 ' +
-                               (stance.status === 'approved' ? 'text-tertiary bg-tertiary/10 border-tertiary/20' :
-                                stance.status === 'flagged' ? 'text-error bg-error/10 border-error/20' :
-                                'text-amber-400 bg-amber-500/10 border-amber-500/20')">
-                  {{ stance.status === 'approved' ? 'Cleared' : stance.status === 'flagged' ? 'Flagged' : 'Conditional' }}
-                </span>
+
+                <!-- Dropdown Points (visible only if expanded) -->
+                <div *ngIf="selectedStanceAgent === stance.agent" 
+                     class="px-3 pb-2.5 pt-0.5 flex flex-col gap-2 border-t border-white/5 bg-white/[0.01] overflow-hidden animate-fade-in">
+                  <div *ngFor="let reason of selectedStanceReasons" 
+                       class="flex items-start gap-1.5 text-[10.5px] leading-relaxed text-on-surface-variant">
+                    <span class="material-symbols-outlined text-[12px] mt-[3.5px] shrink-0"
+                          [class.text-tertiary]="stance.status === 'approved'"
+                          [class.text-error]="stance.status === 'flagged'"
+                          [class.text-amber-400]="stance.status === 'conditional'">
+                      {{ stance.status === 'approved' ? 'check_circle' : 'double_arrow' }}
+                    </span>
+                    <span>{{ reason }}</span>
+                  </div>
+                </div>
+
               </div>
             </div>
           </div>
@@ -834,3 +864,4 @@
   </ng-container>
 
 </main>
+
