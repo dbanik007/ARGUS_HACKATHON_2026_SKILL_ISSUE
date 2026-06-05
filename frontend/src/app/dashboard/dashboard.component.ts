@@ -139,6 +139,13 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
   evaluating: boolean = false;
   activeTab: 'console' | 'history' | 'training' = 'console';
   agentConfigs: any = null;
+  originalAgentConfigs: any = null;
+  
+  get isAgentConfigsChanged(): boolean {
+    if (!this.agentConfigs || !this.originalAgentConfigs) return false;
+    return JSON.stringify(this.agentConfigs) !== JSON.stringify(this.originalAgentConfigs);
+  }
+
   isSidebarCollapsed: boolean = false;
   missionBriefing: string = '';
   verdictCollapsed: boolean = true;
@@ -220,6 +227,7 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
     this.http.get<any>(`${this.backendUrl}/api/agents/config`, { headers }).subscribe({
       next: (data) => {
         this.agentConfigs = data;
+        this.originalAgentConfigs = JSON.parse(JSON.stringify(data));
       },
       error: (err) => {
         console.error('Failed to load agent configs:', err);
@@ -234,6 +242,7 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
     this.http.put<any>(`${this.backendUrl}/api/agents/config`, this.agentConfigs, { headers }).subscribe({
       next: (data) => {
         this.agentConfigs = data.configs;
+        this.originalAgentConfigs = JSON.parse(JSON.stringify(data.configs));
         this.showToast('Agent configuration deployed successfully.');
       },
       error: (err) => {

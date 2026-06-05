@@ -1,11 +1,14 @@
 'use strict';
 
 const DEFAULT_CONFIGS = {
-  'Account Executive': { slider1: 65, slider2: 40, customDirectives: '' },
-  'Legal':             { slider1: 15, slider2: 5,  customDirectives: '' },
-  'Resource':          { slider1: 50, slider2: 75, customDirectives: '' },
-  'Financial':         { slider1: 30, slider2: 60, customDirectives: '' },
-  'Board of Directors':{ slider1: 85, slider2: 90, customDirectives: '' }
+  'Account Executive':   { slider1: 65, slider2: 40, customDirectives: '' },
+  'Legal':               { slider1: 15, slider2: 5,  customDirectives: '' },
+  'Resource':            { slider1: 50, slider2: 75, customDirectives: '' },
+  'Financial':           { slider1: 30, slider2: 60, customDirectives: '' },
+  'Technical Architect': { slider1: 40, slider2: 70, customDirectives: '' },
+  'Risk Analyst':        { slider1: 30, slider2: 40, customDirectives: '' },
+  'Operations Manager':  { slider1: 60, slider2: 65, customDirectives: '' },
+  'Board of Directors':  { slider1: 85, slider2: 90, customDirectives: '' }
 };
 
 const getConfigsForUser = async (pool, userId) => {
