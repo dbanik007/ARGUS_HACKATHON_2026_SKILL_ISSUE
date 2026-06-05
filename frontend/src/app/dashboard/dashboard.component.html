@@ -54,6 +54,23 @@
 <!-- Employee Import Modal -->
 <app-import-modal [isOpen]="showImportModal" (closed)="showImportModal = false"></app-import-modal>
 
+<!-- Toast Notification -->
+<div *ngIf="toast"
+     class="fixed bottom-6 right-6 z-[200] flex items-center gap-3 px-4 py-3 rounded-xl glass-panel shadow-2xl animation-fade-in min-w-[260px] max-w-[380px]"
+     [ngClass]="toast.type === 'success'
+       ? 'border border-tertiary/40 bg-tertiary/10'
+       : 'border border-error/40 bg-error/10'">
+  <span class="material-symbols-outlined text-[20px] shrink-0"
+        [class.text-tertiary]="toast.type === 'success'"
+        [class.text-error]="toast.type === 'error'">
+    {{ toast.type === 'success' ? 'check_circle' : 'error' }}
+  </span>
+  <span class="font-body-md text-[13px] text-on-surface flex-1">{{ toast.message }}</span>
+  <button (click)="dismissToast()" class="shrink-0 text-on-surface-variant hover:text-on-surface transition-colors ml-1">
+    <span class="material-symbols-outlined text-[16px]">close</span>
+  </button>
+</div>
+
 <!-- Main Workspace Panel -->
 <main class="flex-1 mt-xl h-[calc(100vh-80px)] flex bg-dashboard-workspace">
   

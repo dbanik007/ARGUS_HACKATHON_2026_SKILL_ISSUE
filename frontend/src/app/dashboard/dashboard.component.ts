@@ -145,6 +145,24 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
 
   // Import modal
   showImportModal = false;
+
+  // Toast notification
+  toast: { message: string; type: 'success' | 'error' } | null = null;
+  private toastTimeout: any = null;
+
+  showToast(message: string, type: 'success' | 'error' = 'success'): void {
+    if (this.toastTimeout) clearTimeout(this.toastTimeout);
+    this.toast = { message, type };
+    this.toastTimeout = setTimeout(() => this.dismissToast(), 3500);
+  }
+
+  dismissToast(): void {
+    this.toast = null;
+    if (this.toastTimeout) {
+      clearTimeout(this.toastTimeout);
+      this.toastTimeout = null;
+    }
+  }
   
   backendUrl = 'http://localhost:3000';
   private eventSource: EventSource | null = null;
@@ -207,10 +225,11 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
     this.http.put<any>(`${this.backendUrl}/api/agents/config`, this.agentConfigs, { headers }).subscribe({
       next: (data) => {
         this.agentConfigs = data.configs;
-        alert('Configuration deployed successfully!');
+        this.showToast('Agent configuration deployed successfully.');
       },
       error: (err) => {
         console.error('Failed to save agent configs:', err);
+        this.showToast('Failed to deploy configuration. Please try again.', 'error');
       }
     });
   }
@@ -468,6 +487,13 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
   }
 
   cancelEvaluation(): void {
+    // Tell the backend to stop making further Gemini calls for this session
+    if (this.activeSession) {
+      const token = localStorage.getItem('token');
+      const headers = new HttpHeaders().set('Authorization', `Bearer ${token}`);
+      this.http.post(`${this.backendUrl}/api/evaluation/cancel/${this.activeSession.id}`, {}, { headers }).subscribe();
+    }
+
     if (this.eventSource) {
       this.eventSource.close();
       this.eventSource = null;
