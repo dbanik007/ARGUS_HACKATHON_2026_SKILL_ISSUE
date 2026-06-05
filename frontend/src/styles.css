@@ -64,8 +64,8 @@ button:disabled {
   --primary: #00d4ff;
   --on-primary: #000000;
   --secondary: #dfb7ff;
-  --tertiary: #56ffa8;
-  --tertiary-fixed: #56ffa8;
+  --tertiary: #00d4ff;
+  --tertiary-fixed: #00d4ff;
   --error: #ff4a6b;
   
   --on-surface: #e5e1e4;
@@ -84,8 +84,8 @@ button:disabled {
   --primary: #009cc4;
   --on-primary: #ffffff;
   --secondary: #8a4fff;
-  --tertiary: #0f766e;
-  --tertiary-fixed: #059669;
+  --tertiary: #009cc4;
+  --tertiary-fixed: #009cc4;
   --error: #dc2626;
   
   --on-surface: #1f1f23;

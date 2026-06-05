@@ -378,10 +378,12 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
   resetAgentConfigs(): void {
     if (confirm('Reset to defaults?')) {
       this.agentConfigs = {
-        'Account Executive': { slider1: 65, slider2: 40, customDirectives: '' },
         Legal: { slider1: 15, slider2: 5, customDirectives: '' },
         Resource: { slider1: 50, slider2: 75, customDirectives: '' },
         Financial: { slider1: 30, slider2: 60, customDirectives: '' },
+        'Technical Architect': { slider1: 40, slider2: 70, customDirectives: '' },
+        'Risk Analyst': { slider1: 30, slider2: 40, customDirectives: '' },
+        'Operations Manager': { slider1: 60, slider2: 65, customDirectives: '' },
         'Board of Directors': { slider1: 85, slider2: 90, customDirectives: '' },
       };
       this.saveAgentConfigs();
@@ -617,8 +619,7 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
         return 'account_circle';
       case 'Swarm':
         return 'sensors';
-      case 'Account Executive':
-        return 'person';
+
       case 'Resource':
         return 'engineering';
       case 'Technical Architect':
@@ -640,7 +641,6 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
 
   getAgentDotClass(sender: string): string {
     const map: { [k: string]: string } = {
-      'Account Executive': 'bg-indigo-500',
       Resource: 'bg-blue-500',
       'Technical Architect': 'bg-violet-500',
       'Risk Analyst': 'bg-orange-500',
@@ -805,8 +805,7 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
         return 'border-primary text-primary bg-primary/10';
       case 'Swarm':
         return 'border-tertiary text-tertiary bg-tertiary/10';
-      case 'Account Executive':
-        return 'border-indigo-500 text-indigo-400 bg-indigo-500/10';
+
       case 'Resource':
         return 'border-blue-500 text-blue-400 bg-blue-500/10';
       case 'Technical Architect':
@@ -838,7 +837,6 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
 
     // Round 1 order
     const round1Order = [
-      'Account Executive',
       'Resource',
       'Technical Architect',
       'Risk Analyst',
@@ -939,11 +937,7 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
 
     if (anyFlagged) {
       // 1. Proposer speaks first in round 2
-      const proposerName = roster.includes('Account Executive')
-        ? 'Account Executive'
-        : roster.includes('Financial')
-          ? 'Financial'
-          : null;
+      const proposerName = roster.includes('Financial') ? 'Financial' : null;
       if (proposerName) {
         const proposerRound2 = agentMessages.some(
           (m) => m.sender === proposerName && m.negotiation_round === 2,
@@ -959,14 +953,6 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
           (m) => m.sender === 'Legal' && m.negotiation_round === 2,
         );
         if (!legalRound2) return 'Legal';
-      }
-
-      // 3. Financial reacts as CFO in round 2 if AE was the proposer, Financial is in roster, and finance was flagged
-      if (proposerName === 'Account Executive' && roster.includes('Financial') && financeFlagged) {
-        const finRound2 = agentMessages.some(
-          (m) => m.sender === 'Financial' && m.negotiation_round === 2,
-        );
-        if (!finRound2) return 'Financial';
       }
     }
 

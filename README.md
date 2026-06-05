@@ -6,7 +6,7 @@ TenderMind AI is a multi-agent decision intelligence platform designed to evalua
 
 ## 1. Why Multiple Agents Are Required
 * **Cognitive Load & Domain Expertise**: A single AI model attempting to evaluate a 10-page tender requirements document across technical feasibility, staffing, finance, legal, risk, and operations faces severe cognitive bias and hallucinations. Breaking this down into specialized agent personas ensures each focuses strictly on its core competency.
-* **Simulated Corporate Governance**: The system mimics real boardroom dynamics. Conflict is intentional: the **Account Executive** drives the commercial "GO" case, while the **Risk Analyst**, **Legal Analyst**, and **Resource Planner** serve as guardrails. The interaction of these opposing interests yields highly balanced compromises.
+* **Simulated Corporate Governance**: The system mimics real boardroom dynamics. Conflict is intentional: the **Financial Analyst** drives the commercial "GO" case, while the **Risk Analyst**, **Legal Analyst**, and **Resource Planner** serve as guardrails. The interaction of these opposing interests yields highly balanced compromises.
 * **Deterministic Sequencing**: Collaborative decision-making requires sequential auditing. An architect's concerns about technology complexity directly feed into the risk analyst's cost estimation, which in turn influences the financial analyst's margin calculations.
 
 ---
@@ -15,7 +15,6 @@ TenderMind AI is a multi-agent decision intelligence platform designed to evalua
 
 | Agent | Responsibility | Core Skillset / Data Queries |
 | :--- | :--- | :--- |
-| **Account Executive (AE)** | Commercial growth, client relations, and bid advocacy. Always starts advocating a `GO` decision. | Revenue optimization, strategic client positioning, negotiation reframing. |
 | **Technical Architect (TA)** | Technical feasibility and solution engineering. | Tech-stack compatibility analysis, development architecture alignment. |
 | **Resource Planner (RP)** | Roster constraints and staffing capability analysis. | Database query execution (`employee_techstacks`, `employee_projects`) to check developer availability. |
 | **Risk Analyst (RA)** | Risk category assignment (`LOW` $\rightarrow$ `CRITICAL`) and mitigation planning. | Operational exposure estimation, buffer sizing, vulnerability identification. |
@@ -32,11 +31,11 @@ TenderMind AI is a multi-agent decision intelligence platform designed to evalua
 graph TD
     A[User Inputs Tender Briefing] --> B[User Message Saved & Rendered Right-Aligned]
     B --> C[Round 1: Roster Evaluations]
-    C -->|AE Advocacy| D[Initial Agent Stances generated]
+    C -->|Financial Advocacy| D[Initial Agent Stances generated]
     D -->|Resource Planner Checks DB| E[TA, RA, OM, LC, FA analyze]
     E --> F{Any Flags Raised?}
     F -->|Yes| G[Round 2: Rebuttals & Mitigations]
-    G -->|AE Proposes Adjustments| H[Impacted Agents update stances]
+    G -->|Financial Proposes Adjustments| H[Impacted Agents update stances]
     F -->|No| I[Board of Directors Review]
     H --> I
     I --> J[Final Verdict: GO / NO-GO / NEGOTIATE]
@@ -44,14 +43,14 @@ graph TD
 ```
 
 * **Dynamic Data Integration**: If enabled, the **Resource Planner** queries the active database to count matches for the requested tech stack against actual employees.
-* **Feedback Loop**: When flags are raised in Round 1, the backend injects these issues as constraints for the Account Executive in Round 2. The AE's compromise adjustments are then verified by the affected agents to see if the flag can be downgraded.
+* **Feedback Loop**: When flags are raised in Round 1, the backend injects these issues as constraints for the Financial agent in Round 2. The Financial agent's compromise adjustments are then verified by the affected agents to see if the flag can be downgraded.
 * **Synthesis**: The final verdict is determined programmatically by the Board of Directors based on remaining flags.
 
 ---
 
 ## 4. Skills & Agents: What is Lost if Removed
 
-* **Without Account Executive**: The system defaults to a highly conservative "NO-GO" on any project with moderate risk, losing all business growth drive.
+* **Without Financial Analyst**: The system defaults to a highly conservative "NO-GO" on any project with moderate risk, losing all business growth drive.
 * **Without Technical Architect / Resource Planner**: The swarm will approve tenders that are physically impossible to build or for which the company lacks available developers, leading to delivery failure.
 * **Without Risk Analyst**: Tenders are approved without buffers, making the project vulnerable to timeline slips or scope creep.
 * **Without Legal & Financial Analysts**: The company risks committing to unprofitable contracts or exposing itself to legal liabilities (e.g., non-compliant data handling penalties).
