@@ -1,9 +1,9 @@
 <div *ngIf="isOpen" class="fixed inset-0 z-[200] flex items-center justify-center p-4">
   <!-- Backdrop -->
-  <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" (click)="close()"></div>
+  <div class="absolute inset-0 bg-black/80 backdrop-blur-md" (click)="close()"></div>
 
   <!-- Panel -->
-  <div class="relative z-10 w-full max-w-2xl glass-panel rounded-2xl border border-white/10 shadow-2xl flex flex-col gap-0 overflow-hidden">
+  <div class="relative z-10 w-full max-w-2xl bg-surface-container rounded-2xl border border-white/10 shadow-2xl flex flex-col gap-0 overflow-hidden">
 
     <!-- Header -->
     <div class="flex items-center justify-between px-lg py-md border-b border-white/10 bg-surface-container/40">
@@ -40,8 +40,10 @@
         class="relative border-2 border-dashed rounded-xl py-xl px-lg flex flex-col items-center gap-sm transition-all duration-200 cursor-pointer select-none"
         [class.border-primary]="isDragOver"
         [class.bg-primary/5]="isDragOver"
-        [class.border-white/15]="!isDragOver"
-        [class.hover:border-white/30]="!isDragOver"
+        [class.border-secondary/40]="!!selectedFile && !isDragOver"
+        [class.bg-secondary/5]="!!selectedFile && !isDragOver"
+        [class.border-white/15]="!isDragOver && !selectedFile"
+        [class.hover:border-white/30]="!isDragOver && !selectedFile"
         (dragover)="onDragOver($event)"
         (dragleave)="onDragLeave($event)"
         (drop)="onDrop($event)"

@@ -107,7 +107,9 @@
         <span [class.hidden]="isSidebarCollapsed" class="text-sm font-medium whitespace-nowrap">Settings</span>
       </button>
     </div>
-
+    <!-- Collapse Toggle -->
+    <div class="p-4 border-t border-white/10 flex justify-end">
+      <button (click)="isSidebarCollapsed = !isSidebarCollapsed" class="p-2 rounded hover:bg-white/5 text-on-surface-variant flex items-center justify-center transition-colors">
         <span class="material-symbols-outlined transition-transform duration-300" [class.rotate-180]="isSidebarCollapsed">keyboard_double_arrow_left</span>
       </button>
     </div>
@@ -987,7 +989,7 @@
         <div class="xl:col-span-2 flex flex-col gap-gutter">
           
           <!-- Company Profile Card -->
-          <div class="glass-panel p-md rounded-xl flex flex-col gap-md">
+          <div class="glass-panel p-lg rounded-xl flex flex-col gap-md">
             <div class="flex items-center gap-sm border-b border-white/10 pb-sm">
               <span class="material-symbols-outlined text-primary">corporate_fare</span>
               <h2 class="font-headline-md text-headline-md text-on-surface">Company Profile</h2>
@@ -1032,7 +1034,7 @@
           </div>
 
           <!-- Financial Snapshot Card -->
-          <div class="glass-panel p-md rounded-xl flex flex-col gap-md">
+          <div class="glass-panel p-lg rounded-xl flex flex-col gap-md">
             <div class="flex items-center gap-sm border-b border-white/10 pb-sm">
               <span class="material-symbols-outlined text-primary">payments</span>
               <h2 class="font-headline-md text-headline-md text-on-surface">Financial Snapshot</h2>
@@ -1101,7 +1103,7 @@
         <div class="flex flex-col gap-gutter">
           
           <!-- Bulk Import Employees Card -->
-          <div class="glass-panel p-md rounded-xl flex flex-col gap-md">
+          <div class="glass-panel p-lg rounded-xl flex flex-col gap-md">
             <div class="flex items-center gap-sm border-b border-white/10 pb-sm">
               <span class="material-symbols-outlined text-primary">upload_file</span>
               <h2 class="font-headline-md text-headline-md text-on-surface">Bulk Import</h2>
@@ -1126,7 +1128,7 @@
       </div>
 
       <!-- Bottom Roster Section (Full width) -->
-      <div class="glass-panel p-md rounded-xl flex flex-col gap-md mb-8">
+      <div class="glass-panel p-lg rounded-xl flex flex-col gap-md mb-8">
         <div class="flex justify-between items-center border-b border-white/10 pb-sm">
           <div class="flex items-center gap-sm">
             <span class="material-symbols-outlined text-primary">groups</span>
