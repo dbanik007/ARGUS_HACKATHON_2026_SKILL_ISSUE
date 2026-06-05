@@ -51,9 +51,11 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
 
   // Agent Roster Options
   agentsRoster = {
-    sales: true,
-    resource: true,
+    techArchitect: true,
+    riskAnalyst: true,
+    opsManager: true,
     legal: true,
+    resource: true,
     finance: true
   };
 
@@ -107,9 +109,11 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
     }
 
     if (field === 'roster') {
-      const activeCount = (this.agentsRoster.sales ? 1 : 0) +
-                          (this.agentsRoster.resource ? 1 : 0) +
+      const activeCount = (this.agentsRoster.techArchitect ? 1 : 0) +
+                          (this.agentsRoster.riskAnalyst ? 1 : 0) +
+                          (this.agentsRoster.opsManager ? 1 : 0) +
                           (this.agentsRoster.legal ? 1 : 0) +
+                          (this.agentsRoster.resource ? 1 : 0) +
                           (this.agentsRoster.finance ? 1 : 0);
       if (activeCount === 0) {
         this.errors['roster'] = 'Please select at least one agent to initiate evaluation.';
@@ -275,9 +279,11 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
 
     // Map roster items
     const roster: string[] = [];
-    if (this.agentsRoster.sales) roster.push('Account Executive');
-    if (this.agentsRoster.resource) roster.push('Resource');
+    if (this.agentsRoster.techArchitect) roster.push('Technical Architect');
+    if (this.agentsRoster.riskAnalyst) roster.push('Risk Analyst');
+    if (this.agentsRoster.opsManager) roster.push('Operations Manager');
     if (this.agentsRoster.legal) roster.push('Legal');
+    if (this.agentsRoster.resource) roster.push('Resource');
     if (this.agentsRoster.finance) roster.push('Financial');
 
     const body = {

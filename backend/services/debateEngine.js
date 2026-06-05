@@ -334,8 +334,10 @@ const runDebateAsync = async (session, roster, emitter, pool, missionBriefing = 
 
   try {
     // ── Round 1: Initial presentations ──────────────────────────────────────
-    await runAgent('Account Executive', 1);
-    agentFlags['Account Executive'] = 'approved';
+    if (roster.includes('Account Executive')) {
+      await runAgent('Account Executive', 1);
+      agentFlags['Account Executive'] = 'approved';
+    }
 
     let resourceFlagged = false;
     if (roster.includes('Resource')) {
@@ -349,9 +351,9 @@ const runDebateAsync = async (session, roster, emitter, pool, missionBriefing = 
       agentFlags['Resource'] = resourceFlagged ? 'flagged' : 'approved';
     }
 
-    // Technical Architect always participates
+    // Technical Architect
     let techFlagged = false;
-    {
+    if (roster.includes('Technical Architect')) {
       const techMsg = await runAgent('Technical Architect', 1);
       const lower = techMsg.toLowerCase();
       techFlagged = lower.includes('not feasible') || lower.includes('unrealistic') ||
@@ -362,9 +364,9 @@ const runDebateAsync = async (session, roster, emitter, pool, missionBriefing = 
       agentFlags['Technical Architect'] = techFlagged ? 'conditional' : 'approved';
     }
 
-    // Risk Analyst always participates
+    // Risk Analyst
     let riskFlagged = false;
-    {
+    if (roster.includes('Risk Analyst')) {
       const riskMsg = await runAgent('Risk Analyst', 1);
       const lower = riskMsg.toLowerCase();
       riskFlagged = lower.includes('high') || lower.includes('critical') ||
@@ -373,12 +375,13 @@ const runDebateAsync = async (session, roster, emitter, pool, missionBriefing = 
       agentFlags['Risk Analyst'] = riskFlagged ? 'conditional' : 'approved';
     }
 
-    // Operations Manager always participates
-    {
+    // Operations Manager
+    let opsConcern = false;
+    if (roster.includes('Operations Manager')) {
       const opsMsg = await runAgent('Operations Manager', 1);
       const lower = opsMsg.toLowerCase();
-      const opsConcern = lower.includes('cannot execute') || lower.includes('execution gap') ||
-                         lower.includes('not executable') || lower.includes('operationally unsound');
+      opsConcern = lower.includes('cannot execute') || lower.includes('execution gap') ||
+                   lower.includes('not executable') || lower.includes('operationally unsound');
       agentFlags['Operations Manager'] = opsConcern ? 'conditional' : 'approved';
     }
 
@@ -417,9 +420,11 @@ const runDebateAsync = async (session, roster, emitter, pool, missionBriefing = 
       if (techFlagged) issues.push('Technical Architect raised feasibility/timeline concerns');
       if (riskFlagged) issues.push('Risk Analyst flagged HIGH or CRITICAL risk profile');
 
-      await runAgent('Account Executive', 2,
-        `Concerns raised: ${issues.join('; ')}. Propose a concrete counter-offer and revised terms.`);
-      agentFlags['Account Executive'] = 'approved'; // AE always advocates
+      if (roster.includes('Account Executive')) {
+        await runAgent('Account Executive', 2,
+          `Concerns raised: ${issues.join('; ')}. Propose a concrete counter-offer and revised terms.`);
+        agentFlags['Account Executive'] = 'approved'; // AE always advocates
+      }
 
       if (financeFlagged && roster.includes('Financial')) {
         await runAgent('Financial', 2,

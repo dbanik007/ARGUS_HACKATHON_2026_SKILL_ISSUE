@@ -170,6 +170,7 @@
             <option value="E-Commerce">E-Commerce & Retail</option>
             <option value="Cybersecurity">Cybersecurity & Infra</option>
             <option value="Logistics">Logistics & Supply Chain</option>
+            <option value="Others">Others</option>
           </select>
         </div>
       </div>
@@ -181,47 +182,45 @@
             <span class="material-symbols-outlined text-secondary">group</span>
             <h3 class="font-headline-md text-body-lg font-semibold text-on-surface">Agent Roster</h3>
           </div>
-          <span class="font-caption text-caption px-2 py-1 bg-surface-variant rounded-md text-on-surface-variant">7 Agent Debate</span>
+          <span class="font-caption text-caption px-2 py-1 bg-surface-variant rounded-md text-on-surface-variant">6 Agent Debate</span>
         </div>
 
         <div class="flex flex-col gap-xs">
-          <!-- AE Toggle -->
-          <div class="flex items-center justify-between p-sm rounded-lg hover:bg-white/2 transition-colors" [class.border-error]="errors['roster']">
-            <div class="flex items-center gap-sm">
-              <div class="w-2 h-2 rounded-full bg-indigo-500 shadow-[0_0_8px_rgba(99,102,241,0.8)]"></div>
-              <span class="font-label-md text-label-md text-on-surface">Account Executive (Sales)</span>
-            </div>
-            <label class="relative inline-flex items-center cursor-pointer">
-              <input type="checkbox" [(ngModel)]="agentsRoster.sales" (change)="validateField('roster')" [disabled]="evaluating" class="sr-only peer">
-              <div class="w-9 h-5 bg-surface-container-highest peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-500 shadow-[inset_0_0_5px_rgba(0,0,0,0.5)] transition-all duration-300"></div>
-            </label>
-          </div>
 
-          <!-- Technical Architect: Always present -->
-          <div class="flex items-center justify-between p-sm rounded-lg hover:bg-white/2 transition-colors">
+          <!-- Technical Architect Toggle -->
+          <div class="flex items-center justify-between p-sm rounded-lg hover:bg-white/2 transition-colors" [class.border-error]="errors['roster']">
             <div class="flex items-center gap-sm">
               <div class="w-2 h-2 rounded-full bg-violet-500 shadow-[0_0_8px_rgba(139,92,246,0.8)]"></div>
               <span class="font-label-md text-label-md text-on-surface">Technical Architect</span>
             </div>
-            <span class="text-[10px] text-violet-400 font-bold uppercase tracking-wider bg-violet-500/10 px-2 py-0.5 rounded border border-violet-500/20">Always</span>
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" [(ngModel)]="agentsRoster.techArchitect" (change)="validateField('roster')" [disabled]="evaluating" class="sr-only peer">
+              <div class="w-9 h-5 bg-surface-container-highest peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-violet-500 shadow-[inset_0_0_5px_rgba(0,0,0,0.5)] transition-all duration-300"></div>
+            </label>
           </div>
 
-          <!-- Risk Analyst: Always present -->
-          <div class="flex items-center justify-between p-sm rounded-lg hover:bg-white/2 transition-colors">
+          <!-- Risk Analyst Toggle -->
+          <div class="flex items-center justify-between p-sm rounded-lg hover:bg-white/2 transition-colors" [class.border-error]="errors['roster']">
             <div class="flex items-center gap-sm">
               <div class="w-2 h-2 rounded-full bg-orange-500 shadow-[0_0_8px_rgba(249,115,22,0.8)]"></div>
               <span class="font-label-md text-label-md text-on-surface">Risk Analyst</span>
             </div>
-            <span class="text-[10px] text-orange-400 font-bold uppercase tracking-wider bg-orange-500/10 px-2 py-0.5 rounded border border-orange-500/20">Always</span>
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" [(ngModel)]="agentsRoster.riskAnalyst" (change)="validateField('roster')" [disabled]="evaluating" class="sr-only peer">
+              <div class="w-9 h-5 bg-surface-container-highest peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-orange-500 shadow-[inset_0_0_5px_rgba(0,0,0,0.5)] transition-all duration-300"></div>
+            </label>
           </div>
 
-          <!-- Operations Manager: Always present -->
-          <div class="flex items-center justify-between p-sm rounded-lg hover:bg-white/2 transition-colors">
+          <!-- Operations Manager Toggle -->
+          <div class="flex items-center justify-between p-sm rounded-lg hover:bg-white/2 transition-colors" [class.border-error]="errors['roster']">
             <div class="flex items-center gap-sm">
               <div class="w-2 h-2 rounded-full bg-teal-500 shadow-[0_0_8px_rgba(20,184,166,0.8)]"></div>
               <span class="font-label-md text-label-md text-on-surface">Operations Manager</span>
             </div>
-            <span class="text-[10px] text-teal-400 font-bold uppercase tracking-wider bg-teal-500/10 px-2 py-0.5 rounded border border-teal-500/20">Always</span>
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" [(ngModel)]="agentsRoster.opsManager" (change)="validateField('roster')" [disabled]="evaluating" class="sr-only peer">
+              <div class="w-9 h-5 bg-surface-container-highest peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-teal-500 shadow-[inset_0_0_5px_rgba(0,0,0,0.5)] transition-all duration-300"></div>
+            </label>
           </div>
 
           <!-- Legal & Compliance Toggle -->
@@ -263,16 +262,7 @@
 
         <span *ngIf="errors['roster']" class="text-error text-caption my-sm animation-fade-in block text-center">{{ errors['roster'] }}</span>
 
-        <button 
-          (click)="initiateEvaluation()" 
-          [disabled]="evaluating || errors['roster']"
-          class="mt-auto w-full py-sm px-md bg-primary text-on-primary font-label-md text-label-md rounded-lg relative overflow-hidden group hover:scale-[1.02] transition-all duration-300 animate-breathe disabled:opacity-50 disabled:scale-100 disabled:shadow-none">
-          <div class="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-in-out"></div>
-          <span class="relative z-10 flex items-center justify-center gap-sm">
-            <span class="material-symbols-outlined text-[18px]">play_arrow</span>
-            {{ evaluating ? 'Evaluation Running...' : 'Initiate Boardroom Evaluation' }}
-          </span>
-        </button>
+
       </div>
     </aside>
 

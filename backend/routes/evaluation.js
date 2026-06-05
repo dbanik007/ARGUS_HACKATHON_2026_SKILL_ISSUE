@@ -53,13 +53,18 @@ router.post('/start', authenticateJWT, async (req, res) => {
     return res.status(400).json({ error: 'Timeline must be a positive integer representing months.' });
   }
 
-  const validIndustries = ['Healthcare', 'Financial Services', 'E-Commerce', 'Cybersecurity', 'Logistics'];
+  const validIndustries = ['Healthcare', 'Financial Services', 'E-Commerce', 'Cybersecurity', 'Logistics', 'Others'];
   if (!validIndustries.includes(industry)) {
     return res.status(400).json({ error: 'Invalid industry vertical selected.' });
   }
 
   if (!Array.isArray(roster) || roster.length === 0) {
     return res.status(400).json({ error: 'Roster must select at least one agent.' });
+  }
+
+  // If roster contains 'Financial', automatically append 'Account Executive'
+  if (roster.includes('Financial') && !roster.includes('Account Executive')) {
+    roster.push('Account Executive');
   }
 
   try {
