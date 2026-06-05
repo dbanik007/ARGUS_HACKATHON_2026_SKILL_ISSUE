@@ -154,11 +154,22 @@ router.get("/mock-login", async (req, res) => {
     if (userRes.rows.length > 0) {
       user = userRes.rows[0];
     } else {
-      const insertRes = await pool.query(
-        "INSERT INTO users (google_id, email, name, picture) VALUES ($1, $2, $3, $4) RETURNING *",
-        [mockId, email, name, picture],
-      );
-      user = insertRes.rows[0];
+      let emailRes = await pool.query("SELECT * FROM users WHERE email = $1", [
+        email,
+      ]);
+      if (emailRes.rows.length > 0) {
+        const updateRes = await pool.query(
+          "UPDATE users SET google_id = $1, name = COALESCE(name, $2), picture = COALESCE(picture, $3) WHERE email = $4 RETURNING *",
+          [mockId, name, picture, email]
+        );
+        user = updateRes.rows[0];
+      } else {
+        const insertRes = await pool.query(
+          "INSERT INTO users (google_id, email, name, picture) VALUES ($1, $2, $3, $4) RETURNING *",
+          [mockId, email, name, picture],
+        );
+        user = insertRes.rows[0];
+      }
     }
 
     const token = jwt.sign(

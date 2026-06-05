@@ -42,6 +42,9 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
   timelineMonths: number = 6;
   industry: string = 'Healthcare';
   
+  // Validation errors
+  errors: { [key: string]: string } = {};
+
   // Agent Roster Options
   agentsRoster = {
     sales: true, // Account Executive: Required
@@ -49,6 +52,64 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
     legal: true,
     finance: true
   };
+
+  validateField(field: string): void {
+    if (field === 'tenderName') {
+      const trimmed = (this.tenderName || '').trim();
+      if (!trimmed) {
+        this.errors['tenderName'] = 'Tender / Project Name is required.';
+      } else if (trimmed.length < 3) {
+        this.errors['tenderName'] = 'Tender Name must be at least 3 characters.';
+      } else if (trimmed.length > 100) {
+        this.errors['tenderName'] = 'Tender Name cannot exceed 100 characters.';
+      } else {
+        delete this.errors['tenderName'];
+      }
+    }
+
+    if (field === 'clientName') {
+      const trimmed = (this.clientName || '').trim();
+      if (!trimmed) {
+        this.errors['clientName'] = 'Client Name is required.';
+      } else if (trimmed.length < 3) {
+        this.errors['clientName'] = 'Client Name must be at least 3 characters.';
+      } else if (trimmed.length > 100) {
+        this.errors['clientName'] = 'Client Name cannot exceed 100 characters.';
+      } else {
+        delete this.errors['clientName'];
+      }
+    }
+
+    if (field === 'budget') {
+      if (this.budget === undefined || this.budget === null || (this.budget as any) === '') {
+        this.errors['budget'] = 'Budget is required.';
+      } else if (this.budget <= 0) {
+        this.errors['budget'] = 'Budget must be greater than 0.';
+      } else {
+        delete this.errors['budget'];
+      }
+    }
+
+    if (field === 'timelineMonths') {
+      if (this.timelineMonths === undefined || this.timelineMonths === null || (this.timelineMonths as any) === '') {
+        this.errors['timelineMonths'] = 'Timeline is required.';
+      } else if (this.timelineMonths <= 0) {
+        this.errors['timelineMonths'] = 'Timeline must be at least 1 month.';
+      } else if (!Number.isInteger(this.timelineMonths)) {
+        this.errors['timelineMonths'] = 'Timeline must be a whole number of months.';
+      } else {
+        delete this.errors['timelineMonths'];
+      }
+    }
+  }
+
+  validateAll(): boolean {
+    this.validateField('tenderName');
+    this.validateField('clientName');
+    this.validateField('budget');
+    this.validateField('timelineMonths');
+    return Object.keys(this.errors).length === 0;
+  }
 
   // Evaluation States
   activeSession: EvaluationSession | null = null;
@@ -116,6 +177,10 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
 
   initiateEvaluation(): void {
     if (this.evaluating) return;
+
+    if (!this.validateAll()) {
+      return;
+    }
     
     const token = localStorage.getItem('token');
     if (!token) return;
@@ -143,7 +208,7 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
     };
 
     const headers = new HttpHeaders().set('Authorization', `Bearer ${token}`);
-    this.http.post<EvaluationSession>(`${`${this.backendUrl}/api/evaluation/start`}`, body, { headers }).subscribe({
+    this.http.post<EvaluationSession>(`${this.backendUrl}/api/evaluation/start`, body, { headers }).subscribe({
       next: (session) => {
         this.activeSession = { ...session, final_verdict: 'EVALUATING' };
         this.setupSSEStream(session.id);
@@ -151,7 +216,8 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
       error: (err) => {
         this.evaluating = false;
         console.error('Failed to start evaluation:', err);
-        alert('Could not start evaluation. Please verify database connection.');
+        const errMsg = err.error?.error || 'Could not start evaluation. Please verify database connection.';
+        alert(errMsg);
       }
     });
   }
