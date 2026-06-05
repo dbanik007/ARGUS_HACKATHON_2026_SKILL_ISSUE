@@ -1,22 +1,27 @@
 'use strict';
 const express = require('express');
 const router = express.Router();
-const { getConfigs, updateConfigs } = require('../services/agentConfigs');
+const { pool } = require('../config/db');
+const { getConfigsForUser, updateConfigsForUser } = require('../services/agentConfigs');
 const { authenticateJWT } = require('./auth');
 
-// Get current agent configurations
-router.get('/config', authenticateJWT, (req, res) => {
-  res.json(getConfigs());
+router.get('/config', authenticateJWT, async (req, res) => {
+  try {
+    const configs = await getConfigsForUser(pool, req.user.id);
+    res.json(configs);
+  } catch (err) {
+    console.error('Failed to get agent configs:', err);
+    res.status(500).json({ error: 'Failed to retrieve agent configurations.' });
+  }
 });
 
-// Update agent configurations
-router.put('/config', authenticateJWT, (req, res) => {
+router.put('/config', authenticateJWT, async (req, res) => {
   try {
-    const newConfigs = req.body;
-    updateConfigs(newConfigs);
-    res.json({ success: true, configs: getConfigs() });
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to update configurations' });
+    const configs = await updateConfigsForUser(pool, req.user.id, req.body);
+    res.json({ success: true, configs });
+  } catch (err) {
+    console.error('Failed to update agent configs:', err);
+    res.status(500).json({ error: 'Failed to update agent configurations.' });
   }
 });
 

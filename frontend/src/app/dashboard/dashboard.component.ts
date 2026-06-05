@@ -154,6 +154,24 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
 
   // Import modal
   showImportModal = false;
+
+  // Toast notification
+  toast: { message: string; type: 'success' | 'error' } | null = null;
+  private toastTimeout: any = null;
+
+  showToast(message: string, type: 'success' | 'error' = 'success'): void {
+    if (this.toastTimeout) clearTimeout(this.toastTimeout);
+    this.toast = { message, type };
+    this.toastTimeout = setTimeout(() => this.dismissToast(), 3500);
+  }
+
+  dismissToast(): void {
+    this.toast = null;
+    if (this.toastTimeout) {
+      clearTimeout(this.toastTimeout);
+      this.toastTimeout = null;
+    }
+  }
   
   backendUrl = 'http://localhost:3000';
   private eventSource: EventSource | null = null;
@@ -216,10 +234,11 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
     this.http.put<any>(`${this.backendUrl}/api/agents/config`, this.agentConfigs, { headers }).subscribe({
       next: (data) => {
         this.agentConfigs = data.configs;
-        alert('Configuration deployed successfully!');
+        this.showToast('Agent configuration deployed successfully.');
       },
       error: (err) => {
         console.error('Failed to save agent configs:', err);
+        this.showToast('Failed to deploy configuration. Please try again.', 'error');
       }
     });
   }
@@ -654,41 +673,57 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
       opsMsg.message_text.toLowerCase().includes('operationally unsound')
     );
 
-    const anyFlagged = resourceFlagged || techFlagged || riskFlagged || opsConcern;
+    const financeMsg = agentMessages.find(m => m.sender === 'Financial' && m.negotiation_round === 1);
+    const financeFlagged = financeMsg && (
+      financeMsg.message_text.toLowerCase().includes('negative') ||
+      financeMsg.message_text.toLowerCase().includes('deficit') ||
+      financeMsg.message_text.toLowerCase().includes('too low') ||
+      financeMsg.message_text.toLowerCase().includes('insufficient') ||
+      financeMsg.message_text.toLowerCase().includes('unviable') ||
+      financeMsg.message_text.toLowerCase().includes('untenable') ||
+      financeMsg.message_text.toLowerCase().includes('loss') ||
+      financeMsg.message_text.toLowerCase().includes('exceeds') ||
+      financeMsg.message_text.toLowerCase().includes('shortfall') ||
+      financeMsg.message_text.toLowerCase().includes('blocker') ||
+      financeMsg.message_text.toLowerCase().includes('cannot cover') ||
+      financeMsg.message_text.toLowerCase().includes('renegotiat')
+    );
+
+    const legalMsg = agentMessages.find(m => m.sender === 'Legal' && m.negotiation_round === 1);
+    const legalFlagged = legalMsg && (
+      legalMsg.message_text.toLowerCase().includes('violation') ||
+      legalMsg.message_text.toLowerCase().includes('non-compliant') ||
+      legalMsg.message_text.toLowerCase().includes('breach') ||
+      legalMsg.message_text.toLowerCase().includes('lawsuit') ||
+      legalMsg.message_text.toLowerCase().includes('legal battle') ||
+      legalMsg.message_text.toLowerCase().includes('scam') ||
+      legalMsg.message_text.toLowerCase().includes('court') ||
+      legalMsg.message_text.toLowerCase().includes('litigation') ||
+      legalMsg.message_text.toLowerCase().includes('due diligence')
+    );
+
+    const anyFlagged = resourceFlagged || techFlagged || riskFlagged || financeFlagged || legalFlagged;
 
     if (anyFlagged) {
-      // AE speaks in round 2
-      const aeRound2 = agentMessages.some(m => m.sender === 'Account Executive' && m.negotiation_round === 2);
-      if (!aeRound2 && roster.includes('Account Executive')) {
-        return 'Account Executive';
+      // 1. Proposer speaks first in round 2
+      const proposerName = roster.includes('Account Executive') ? 'Account Executive' : (roster.includes('Financial') ? 'Financial' : null);
+      if (proposerName) {
+        const proposerRound2 = agentMessages.some(m => m.sender === proposerName && m.negotiation_round === 2);
+        if (!proposerRound2) {
+          return proposerName;
+        }
       }
 
-      // Financial speaks in round 2 if in roster and flagged
-      const financeMsg = agentMessages.find(m => m.sender === 'Financial' && m.negotiation_round === 1);
-      const financeFlagged = financeMsg && (
-        financeMsg.message_text.toLowerCase().includes('margin compression') ||
-        financeMsg.message_text.toLowerCase().includes('unviable') ||
-        financeMsg.message_text.toLowerCase().includes('unacceptable margin') ||
-        financeMsg.message_text.toLowerCase().includes('negative return') ||
-        financeMsg.message_text.toLowerCase().includes('under budget')
-      );
-      if (financeFlagged && roster.includes('Financial')) {
-        const finRound2 = agentMessages.some(m => m.sender === 'Financial' && m.negotiation_round === 2);
-        if (!finRound2) return 'Financial';
-      }
-
-      // Legal speaks in round 2 if in roster and flagged
-      const legalMsg = agentMessages.find(m => m.sender === 'Legal' && m.negotiation_round === 1);
-      const legalFlagged = legalMsg && (
-        legalMsg.message_text.toLowerCase().includes('violation') ||
-        legalMsg.message_text.toLowerCase().includes('non-compliant') ||
-        legalMsg.message_text.toLowerCase().includes('breach') ||
-        legalMsg.message_text.toLowerCase().includes('unresolved lawsuit') ||
-        legalMsg.message_text.toLowerCase().includes('legal risk')
-      );
+      // 2. Legal speaks in round 2 if in roster and flagged
       if (legalFlagged && roster.includes('Legal')) {
         const legalRound2 = agentMessages.some(m => m.sender === 'Legal' && m.negotiation_round === 2);
         if (!legalRound2) return 'Legal';
+      }
+
+      // 3. Financial reacts as CFO in round 2 if AE was the proposer, Financial is in roster, and finance was flagged
+      if (proposerName === 'Account Executive' && roster.includes('Financial') && financeFlagged) {
+        const finRound2 = agentMessages.some(m => m.sender === 'Financial' && m.negotiation_round === 2);
+        if (!finRound2) return 'Financial';
       }
     }
 
@@ -730,6 +765,13 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
   }
 
   cancelEvaluation(): void {
+    // Tell the backend to stop making further Gemini calls for this session
+    if (this.activeSession) {
+      const token = localStorage.getItem('token');
+      const headers = new HttpHeaders().set('Authorization', `Bearer ${token}`);
+      this.http.post(`${this.backendUrl}/api/evaluation/cancel/${this.activeSession.id}`, {}, { headers }).subscribe();
+    }
+
     if (this.eventSource) {
       this.eventSource.close();
       this.eventSource = null;
