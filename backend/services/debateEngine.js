@@ -394,6 +394,15 @@ const callGemini = async (agentName, contextPrompt, session, roster, employees, 
   } else if (agentName === 'Financial') {
     systemInstruction += `\nPricing stance (0=strict margin protection required, 100=aggressive pricing/lower margins acceptable): ${agentConfig.slider1}%.`;
     systemInstruction += `\nCost structure preference (0=fixed costs strongly preferred, 100=variable/leverage models acceptable): ${agentConfig.slider2}%.`;
+  } else if (agentName === 'Technical Architect') {
+    systemInstruction += `\nArchitecture stance (0=proven/battle-tested patterns only, 100=cutting-edge/experimental acceptable): ${agentConfig.slider1}%.`;
+    systemInstruction += `\nTechnical scrutiny (0=pragmatic/lenient review, 100=strict/zero technical debt tolerance): ${agentConfig.slider2}%.`;
+  } else if (agentName === 'Risk Analyst') {
+    systemInstruction += `\nRisk sensitivity (0=conservative/flags everything, 100=lenient/high risk tolerance): ${agentConfig.slider1}%.`;
+    systemInstruction += `\nMitigation requirement (0=full mitigation plan required before GO, 100=flag-and-proceed acceptable): ${agentConfig.slider2}%.`;
+  } else if (agentName === 'Operations Manager') {
+    systemInstruction += `\nProcess rigidity (0=strict governance/full waterfall oversight, 100=lean/agile/minimal process): ${agentConfig.slider1}%.`;
+    systemInstruction += `\nOnboarding pace (0=slow methodical ramp-up, 100=fast aggressive onboarding): ${agentConfig.slider2}%.`;
   } else if (agentName === 'Board of Directors') {
     systemInstruction += `\nStrategic stance (0=fully defensive/conservative, 100=aggressive market capture): ${agentConfig.slider1}%.`;
     systemInstruction += `\nRisk appetite (0=minimise all exposure, 100=high beta/aggressive risk acceptable): ${agentConfig.slider2}%.`;
