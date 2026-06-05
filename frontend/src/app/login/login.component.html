@@ -29,7 +29,7 @@
       <!-- 1. Google Auth Button -->
       <button 
         (click)="loginWithGoogle()" 
-        [disabled]="loading"
+        [disabled]="googleLoading || mockLoading"
         class="w-full h-12 rounded-lg bg-white text-black font-semibold text-label-md hover:bg-white/90 active:scale-[0.98] transition-all duration-200 flex items-center justify-center gap-sm shadow-md disabled:opacity-50">
         <svg class="w-5 h-5" viewBox="0 0 24 24">
           <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v3.92h6.69a5.74 5.74 0 0 1-2.48 3.77v3.12h4.01c2.34-2.16 3.69-5.32 3.69-8.74Z"/>
@@ -37,16 +37,16 @@
           <path fill="#FBBC05" d="M5.45 14.33a7.14 7.14 0 0 1 0-4.66V6.45H1.31a12.002 12.002 0 0 0 0 11.1l4.14-3.22Z"/>
           <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.43-3.43A11.957 11.957 0 0 0 12 0C7.26 0 3.19 2.72 1.31 6.45l4.14 3.22c.92-2.77 3.5-4.92 6.55-4.92Z"/>
         </svg>
-        Sign in with Google
+        {{ googleLoading ? 'Redirecting to Google...' : 'Sign in with Google' }}
       </button>
 
       <!-- 2. Mock Bypass Button (Perfect for grading / instant demo) -->
       <button 
         (click)="loginWithMock()"
-        [disabled]="loading"
+        [disabled]="googleLoading || mockLoading"
         class="w-full h-12 rounded-lg bg-surface-container-high border border-white/10 text-on-surface font-semibold text-label-md hover:bg-surface-container-highest hover:border-white/20 active:scale-[0.98] transition-all duration-200 flex items-center justify-center gap-sm disabled:opacity-50">
         <span class="material-symbols-outlined text-lg text-primary">account_circle</span>
-        {{ loading ? 'Bypassing...' : 'Bypass with Mock Profile' }}
+        {{ mockLoading ? 'Bypassing...' : 'Bypass with Mock Profile' }}
       </button>
     </div>
 

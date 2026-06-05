@@ -35,6 +35,7 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
 
   // Session user details
   currentUser: any = null;
+  profilePicFailed: boolean = false;
 
   // Form Inputs
   tenderName: string = 'Next-Gen Medical Telemetry Suite';
@@ -46,9 +47,11 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
   // Validation errors
   errors: { [key: string]: string } = {};
 
+  isDarkMode: boolean = true;
+
   // Agent Roster Options
   agentsRoster = {
-    sales: true, // Account Executive: Required
+    sales: true,
     resource: true,
     legal: true,
     finance: true
@@ -102,6 +105,18 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
         delete this.errors['timelineMonths'];
       }
     }
+
+    if (field === 'roster') {
+      const activeCount = (this.agentsRoster.sales ? 1 : 0) +
+                          (this.agentsRoster.resource ? 1 : 0) +
+                          (this.agentsRoster.legal ? 1 : 0) +
+                          (this.agentsRoster.finance ? 1 : 0);
+      if (activeCount === 0) {
+        this.errors['roster'] = 'Please select at least one agent to initiate evaluation.';
+      } else {
+        delete this.errors['roster'];
+      }
+    }
   }
 
   validateAll(): boolean {
@@ -109,6 +124,7 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
     this.validateField('clientName');
     this.validateField('budget');
     this.validateField('timelineMonths');
+    this.validateField('roster');
     return Object.keys(this.errors).length === 0;
   }
 
@@ -140,6 +156,18 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
     if (!token) {
       this.router.navigate(['/login']);
       return;
+    }
+
+    // Load Theme State
+    const savedTheme = localStorage.getItem('theme');
+    this.isDarkMode = savedTheme ? savedTheme === 'dark' : !window.matchMedia('(prefers-color-scheme: light)').matches;
+    const htmlEl = document.documentElement;
+    if (this.isDarkMode) {
+      htmlEl.classList.remove('light');
+      htmlEl.classList.add('dark');
+    } else {
+      htmlEl.classList.remove('dark');
+      htmlEl.classList.add('light');
     }
 
     // Load User Profile
@@ -246,7 +274,8 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
     this.verdictCollapsed = true;
 
     // Map roster items
-    const roster: string[] = ['Account Executive'];
+    const roster: string[] = [];
+    if (this.agentsRoster.sales) roster.push('Account Executive');
     if (this.agentsRoster.resource) roster.push('Resource');
     if (this.agentsRoster.legal) roster.push('Legal');
     if (this.agentsRoster.finance) roster.push('Financial');
@@ -457,6 +486,20 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
     if (!ke.shiftKey) {
       event.preventDefault();
       this.initiateEvaluation();
+    }
+  }
+
+  toggleTheme(): void {
+    this.isDarkMode = !this.isDarkMode;
+    const htmlEl = document.documentElement;
+    if (this.isDarkMode) {
+      htmlEl.classList.remove('light');
+      htmlEl.classList.add('dark');
+      localStorage.setItem('theme', 'dark');
+    } else {
+      htmlEl.classList.remove('dark');
+      htmlEl.classList.add('light');
+      localStorage.setItem('theme', 'light');
     }
   }
 

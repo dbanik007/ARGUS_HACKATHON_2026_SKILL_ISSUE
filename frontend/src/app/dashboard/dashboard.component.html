@@ -29,11 +29,22 @@
   <!-- User Telemetry & Actions -->
   <div class="flex items-center gap-sm">
     <div *ngIf="currentUser" class="flex items-center gap-sm bg-white/5 px-3 py-1 rounded-full border border-white/10">
-      <div class="w-[24px] h-[24px] rounded-full overflow-hidden border border-white/20">
-        <img [src]="currentUser.picture || 'https://lh3.googleusercontent.com/aida-public/AB6AXuAK8EzG8dux6Y_C3Fqvp_GBBKPl1TuF81nSjkDcSJ8bPDP2rNO1qx7CjC3iWAIq8dgLxFC4U5rE9D1qPsLO5KgHctwe3EwgKjIHrRhEF7n2rLItGyL0FR2kK00hqpzai1laKoKE08Hxi8ZvDRiXdgpqaqyjWZA0AuU5RzjlvU36Q0iBwQsiCxcdfJ9uij-TdtAwqO0gqwx2NiwkTGuOq1Efrctfdh14U2MVEAL3_ZT2Xla8oW4FjyTqXJtw3f7l16mlXpG3tOqFGbM'" alt="Avatar" class="w-full h-full object-cover">
+      <div class="w-gutter h-gutter rounded-full overflow-hidden border border-white/20 relative">
+        <img *ngIf="currentUser.picture && !profilePicFailed"
+             [src]="currentUser.picture"
+             (error)="profilePicFailed = true"
+             alt="Avatar"
+             class="w-full h-full object-cover">
+        <div *ngIf="!currentUser.picture || profilePicFailed"
+             class="w-full h-full flex items-center justify-center bg-primary/20 text-primary font-bold text-[11px] uppercase">
+          {{ currentUser.name?.charAt(0) || '?' }}
+        </div>
       </div>
       <span class="text-caption text-on-surface/95 font-semibold">{{ currentUser.name }}</span>
     </div>
+    <button (click)="toggleTheme()" class="p-2 text-on-surface-variant hover:text-primary transition-colors flex items-center gap-xs mr-1" [title]="isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'">
+      <span class="material-symbols-outlined text-[20px]">{{ isDarkMode ? 'light_mode' : 'dark_mode' }}</span>
+    </button>
     <button (click)="logout()" class="p-2 text-on-surface-variant hover:text-error transition-colors flex items-center gap-xs" title="Log Out">
       <span class="material-symbols-outlined text-[20px]">logout</span>
     </button>
@@ -174,13 +185,16 @@
         </div>
 
         <div class="flex flex-col gap-xs">
-          <!-- AE: Required/Always Checked -->
-          <div class="flex items-center justify-between p-sm rounded-lg hover:bg-white/2 transition-colors">
+          <!-- AE Toggle -->
+          <div class="flex items-center justify-between p-sm rounded-lg hover:bg-white/2 transition-colors" [class.border-error]="errors['roster']">
             <div class="flex items-center gap-sm">
               <div class="w-2 h-2 rounded-full bg-indigo-500 shadow-[0_0_8px_rgba(99,102,241,0.8)]"></div>
               <span class="font-label-md text-label-md text-on-surface">Account Executive (Sales)</span>
             </div>
-            <span class="text-[10px] text-indigo-400 font-bold uppercase tracking-wider bg-indigo-500/10 px-2 py-0.5 rounded border border-indigo-500/20">Required</span>
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" [(ngModel)]="agentsRoster.sales" (change)="validateField('roster')" [disabled]="evaluating" class="sr-only peer">
+              <div class="w-9 h-5 bg-surface-container-highest peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-500 shadow-[inset_0_0_5px_rgba(0,0,0,0.5)] transition-all duration-300"></div>
+            </label>
           </div>
 
           <!-- Technical Architect: Always present -->
@@ -211,46 +225,54 @@
           </div>
 
           <!-- Legal & Compliance Toggle -->
-          <div class="flex items-center justify-between p-sm rounded-lg hover:bg-white/2 transition-colors">
+          <div class="flex items-center justify-between p-sm rounded-lg hover:bg-white/2 transition-colors" [class.border-error]="errors['roster']">
             <div class="flex items-center gap-sm">
               <div class="w-2 h-2 rounded-full bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.8)]"></div>
               <span class="font-label-md text-label-md text-on-surface">Legal & Compliance</span>
             </div>
             <label class="relative inline-flex items-center cursor-pointer">
-              <input type="checkbox" [(ngModel)]="agentsRoster.legal" [disabled]="evaluating" class="sr-only peer">
+              <input type="checkbox" [(ngModel)]="agentsRoster.legal" (change)="validateField('roster')" [disabled]="evaluating" class="sr-only peer">
               <div class="w-9 h-5 bg-surface-container-highest peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-rose-500 shadow-[inset_0_0_5px_rgba(0,0,0,0.5)] transition-all duration-300"></div>
             </label>
           </div>
 
           <!-- Resource Toggle -->
-          <div class="flex items-center justify-between p-sm rounded-lg hover:bg-white/2 transition-colors">
+          <div class="flex items-center justify-between p-sm rounded-lg hover:bg-white/2 transition-colors" [class.border-error]="errors['roster']">
             <div class="flex items-center gap-sm">
               <div class="w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.8)]"></div>
               <span class="font-label-md text-label-md text-on-surface">Resource Planner</span>
             </div>
             <label class="relative inline-flex items-center cursor-pointer">
-              <input type="checkbox" [(ngModel)]="agentsRoster.resource" [disabled]="evaluating" class="sr-only peer">
+              <input type="checkbox" [(ngModel)]="agentsRoster.resource" (change)="validateField('roster')" [disabled]="evaluating" class="sr-only peer">
               <div class="w-9 h-5 bg-surface-container-highest peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-500 shadow-[inset_0_0_5px_rgba(0,0,0,0.5)] transition-all duration-300"></div>
             </label>
           </div>
 
           <!-- Finance Toggle -->
-          <div class="flex items-center justify-between p-sm rounded-lg hover:bg-white/2 transition-colors">
+          <div class="flex items-center justify-between p-sm rounded-lg hover:bg-white/2 transition-colors" [class.border-error]="errors['roster']">
             <div class="flex items-center gap-sm">
               <div class="w-2 h-2 rounded-full bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.8)]"></div>
               <span class="font-label-md text-label-md text-on-surface">Financial Analyst</span>
             </div>
             <label class="relative inline-flex items-center cursor-pointer">
-              <input type="checkbox" [(ngModel)]="agentsRoster.finance" [disabled]="evaluating" class="sr-only peer">
+              <input type="checkbox" [(ngModel)]="agentsRoster.finance" (change)="validateField('roster')" [disabled]="evaluating" class="sr-only peer">
               <div class="w-9 h-5 bg-surface-container-highest peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-500 shadow-[inset_0_0_5px_rgba(0,0,0,0.5)] transition-all duration-300"></div>
             </label>
           </div>
         </div>
 
-        <!-- hint: use the prompt bar in the center panel to deploy -->
-        <p class="mt-auto text-center text-[10px] text-on-surface-variant/30 font-mono px-xs pb-xs">
-          Type a mission briefing in the center panel and press Enter to deploy the swarm ↓
-        </p>
+        <span *ngIf="errors['roster']" class="text-error text-caption my-sm animation-fade-in block text-center">{{ errors['roster'] }}</span>
+
+        <button 
+          (click)="initiateEvaluation()" 
+          [disabled]="evaluating || errors['roster']"
+          class="mt-auto w-full py-sm px-md bg-primary text-on-primary font-label-md text-label-md rounded-lg relative overflow-hidden group hover:scale-[1.02] transition-all duration-300 animate-breathe disabled:opacity-50 disabled:scale-100 disabled:shadow-none">
+          <div class="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-in-out"></div>
+          <span class="relative z-10 flex items-center justify-center gap-sm">
+            <span class="material-symbols-outlined text-[18px]">play_arrow</span>
+            {{ evaluating ? 'Evaluation Running...' : 'Initiate Boardroom Evaluation' }}
+          </span>
+        </button>
       </div>
     </aside>
 
@@ -322,11 +344,13 @@
         </div>
 
       </div>
+
       <!-- Mission Briefing prompt bar -->
       <div class="shrink-0 px-gutter pb-gutter pt-sm bg-gradient-to-t from-background via-background/90 to-transparent">
         <div class="relative rounded-xl border transition-all duration-300 overflow-hidden"
-             [class.border-primary/50]="!evaluating"
-             [class.shadow-[0_0_24px_rgba(99,102,241,0.18)]]="!evaluating"
+             [class.border-primary/50]="!evaluating && !errors['roster']"
+             [class.shadow-[0_0_24px_rgba(99,102,241,0.18)]]="!evaluating && !errors['roster']"
+             [class.border-error]="!evaluating && errors['roster']"
              [class.border-white/10]="evaluating"
              [class.bg-surface-container]="evaluating"
              [class.glass-panel]="!evaluating">
@@ -350,7 +374,7 @@
             <span class="text-primary font-mono text-[15px] pb-[7px] select-none shrink-0">›</span>
             <textarea
               [(ngModel)]="missionBriefing"
-              [disabled]="evaluating"
+              [disabled]="evaluating || errors['roster']"
               (keydown.enter)="onBriefingEnter($event)"
               rows="2"
               placeholder="Mission briefing — type evaluation directives then press Enter or → to deploy the swarm..."
@@ -358,11 +382,11 @@
             </textarea>
             <button
               (click)="initiateEvaluation()"
-              [disabled]="evaluating"
+              [disabled]="evaluating || errors['roster']"
               class="shrink-0 mb-1 w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-              [class.bg-primary]="!evaluating"
-              [class.hover:scale-110]="!evaluating"
-              [class.bg-surface-variant]="evaluating">
+              [class.bg-primary]="!evaluating && !errors['roster']"
+              [class.hover:scale-110]="!evaluating && !errors['roster']"
+              [class.bg-surface-variant]="evaluating || errors['roster']">
               <span class="material-symbols-outlined text-on-primary text-[17px]">send</span>
             </button>
           </div>
