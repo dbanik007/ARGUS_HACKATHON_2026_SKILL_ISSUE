@@ -118,7 +118,9 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
   currentTypingAgent: string | null = null;
   evaluating: boolean = false;
   activeTab: 'console' | 'history' = 'console';
-  
+  missionBriefing: string = '';
+  verdictCollapsed: boolean = true;
+
   // Historical sessions
   historyList: EvaluationSession[] = [];
 
@@ -195,6 +197,7 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
     this.debateMessages = [];
     this.currentTypingAgent = null;
     this.activeTab = 'console';
+    this.verdictCollapsed = true;
 
     // Map roster items
     const roster: string[] = ['Account Executive'];
@@ -208,7 +211,8 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
       budget: this.budget,
       timelineMonths: this.timelineMonths,
       industry: this.industry,
-      roster: roster
+      roster: roster,
+      missionBriefing: this.missionBriefing.trim() || null
     };
 
     const headers = new HttpHeaders().set('Authorization', `Bearer ${token}`);
@@ -250,6 +254,7 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
     this.eventSource.addEventListener('verdict', (event: any) => {
       const data = JSON.parse(event.data);
       this.activeSession = data;
+      this.verdictCollapsed = false; // auto-open when verdict arrives
     });
 
     // Stream finished listener
@@ -286,6 +291,7 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
         this.debateMessages = data.messages;
         this.currentTypingAgent = null;
         this.activeTab = 'console';
+        this.verdictCollapsed = false;
       },
       error: (err) => {
         console.error('Failed to load session details:', err);
@@ -324,6 +330,27 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
   formatMoney(val: any): string {
     const num = Number(val);
     return isNaN(num) ? '0' : num.toLocaleString();
+  }
+
+  cancelEvaluation(): void {
+    if (this.eventSource) {
+      this.eventSource.close();
+      this.eventSource = null;
+    }
+    this.evaluating = false;
+    this.activeSession = null;
+    this.debateMessages = [];
+    this.currentTypingAgent = null;
+    this.verdictCollapsed = true;
+    this.missionBriefing = '';
+  }
+
+  onBriefingEnter(event: Event): void {
+    const ke = event as KeyboardEvent;
+    if (!ke.shiftKey) {
+      event.preventDefault();
+      this.initiateEvaluation();
+    }
   }
 
   logout(): void {

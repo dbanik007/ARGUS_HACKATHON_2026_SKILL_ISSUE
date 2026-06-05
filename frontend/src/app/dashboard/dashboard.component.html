@@ -189,16 +189,10 @@
           </div>
         </div>
 
-        <button 
-          (click)="initiateEvaluation()" 
-          [disabled]="evaluating"
-          class="mt-auto w-full py-sm px-md bg-primary text-on-primary font-label-md text-label-md rounded-lg relative overflow-hidden group hover:scale-[1.02] transition-all duration-300 animate-breathe disabled:opacity-50 disabled:scale-100 disabled:shadow-none">
-          <div class="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-in-out"></div>
-          <span class="relative z-10 flex items-center justify-center gap-sm">
-            <span class="material-symbols-outlined text-[18px]">play_arrow</span>
-            {{ evaluating ? 'Evaluation Running...' : 'Initiate Boardroom Evaluation' }}
-          </span>
-        </button>
+        <!-- hint: use the prompt bar in the center panel to deploy -->
+        <p class="mt-auto text-center text-[10px] text-on-surface-variant/30 font-mono px-xs pb-xs">
+          Type a mission briefing in the center panel and press Enter to deploy the swarm ↓
+        </p>
       </div>
     </aside>
 
@@ -210,9 +204,15 @@
           <span class="material-symbols-outlined text-tertiary" [class.animate-pulse]="evaluating">sensors</span>
           <h2 class="font-headline-md text-body-lg font-semibold text-on-surface">Live Boardroom Trace</h2>
         </div>
-        <div class="flex items-center gap-xs">
+        <div class="flex items-center gap-sm">
           <span class="w-2 h-2 rounded-full" [class.bg-tertiary]="evaluating" [class.bg-white/20]="!evaluating" [class.animate-ping]="evaluating"></span>
           <span class="font-caption text-caption text-on-surface-variant uppercase tracking-wider">{{ evaluating ? 'Streaming' : 'Ready' }}</span>
+          <button *ngIf="evaluating"
+                  (click)="cancelEvaluation()"
+                  class="ml-sm flex items-center gap-xs px-2 py-1 rounded-lg bg-error/10 border border-error/25 text-error text-[10px] font-bold uppercase tracking-wider hover:bg-error/20 transition-all">
+            <span class="material-symbols-outlined text-[13px]">stop_circle</span>
+            Cancel
+          </button>
         </div>
       </div>
 
@@ -264,95 +264,181 @@
         </div>
 
       </div>
-      <!-- Bottom Fade gradient -->
-      <div class="absolute bottom-0 w-full h-xl bg-gradient-to-t from-background to-transparent pointer-events-none"></div>
+      <!-- Mission Briefing prompt bar -->
+      <div class="shrink-0 px-gutter pb-gutter pt-sm bg-gradient-to-t from-background via-background/90 to-transparent">
+        <div class="relative rounded-xl border transition-all duration-300 overflow-hidden"
+             [class.border-primary/50]="!evaluating"
+             [class.shadow-[0_0_24px_rgba(99,102,241,0.18)]]="!evaluating"
+             [class.border-white/10]="evaluating"
+             [class.bg-surface-container]="evaluating"
+             [class.glass-panel]="!evaluating">
+
+          <!-- Locked overlay during evaluation -->
+          <div *ngIf="evaluating"
+               class="absolute inset-0 z-10 flex items-center justify-between px-sm bg-background/70 backdrop-blur-sm rounded-xl">
+            <div class="flex items-center gap-xs">
+              <span class="material-symbols-outlined text-[14px] text-on-surface-variant animate-pulse">sensors</span>
+              <span class="text-[11px] uppercase tracking-widest text-on-surface-variant font-semibold">Swarm deliberating</span>
+              <span class="w-1.5 h-1.5 rounded-full bg-primary animate-ping"></span>
+            </div>
+            <button (click)="cancelEvaluation()"
+                    class="flex items-center gap-xs px-2 py-1 rounded-lg bg-error/10 border border-error/30 text-error text-[10px] font-bold uppercase tracking-wider hover:bg-error/20 transition-all">
+              <span class="material-symbols-outlined text-[12px]">stop_circle</span>
+              Cancel &amp; Clear
+            </button>
+          </div>
+
+          <div class="flex items-end gap-sm p-sm">
+            <span class="text-primary font-mono text-[15px] pb-[7px] select-none shrink-0">›</span>
+            <textarea
+              [(ngModel)]="missionBriefing"
+              [disabled]="evaluating"
+              (keydown.enter)="onBriefingEnter($event)"
+              rows="2"
+              placeholder="Mission briefing — type evaluation directives then press Enter or → to deploy the swarm..."
+              class="flex-1 bg-transparent resize-none font-mono text-[12px] text-on-surface placeholder:text-on-surface-variant/35 focus:outline-none leading-relaxed py-1.5 disabled:opacity-0">
+            </textarea>
+            <button
+              (click)="initiateEvaluation()"
+              [disabled]="evaluating"
+              class="shrink-0 mb-1 w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+              [class.bg-primary]="!evaluating"
+              [class.hover:scale-110]="!evaluating"
+              [class.bg-surface-variant]="evaluating">
+              <span class="material-symbols-outlined text-on-primary text-[17px]">send</span>
+            </button>
+          </div>
+
+          <!-- Active hint row -->
+          <div *ngIf="!evaluating" class="flex items-center gap-xs px-sm pb-[6px]">
+            <span class="text-[9px] text-on-surface-variant/30 font-mono">Enter to send · Shift+Enter for newline</span>
+          </div>
+        </div>
+      </div>
     </section>
 
-    <!-- RIGHT: Executive Verdict (25% width) -->
-    <aside class="w-[25%] h-full p-gutter bg-surface-container-lowest flex flex-col relative shrink-0" [class.animate-scan]="evaluating">
-      <div class="sticky top-0 flex flex-col h-full gap-md">
-        <h2 class="font-headline-md text-body-lg font-semibold text-on-surface uppercase tracking-widest text-center border-b border-white/10 pb-sm">
+    <!-- RIGHT: Executive Verdict — sideways collapsible -->
+    <aside class="h-full bg-surface-container-lowest flex flex-row relative shrink-0 border-l border-white/10 overflow-hidden"
+           [class.animate-scan]="evaluating && !verdictCollapsed"
+           style="transition: width 0.35s cubic-bezier(0.4,0,0.2,1)"
+           [style.width]="verdictCollapsed ? '44px' : '25%'">
+
+      <!-- ── COLLAPSED STRIP ── shown when verdictCollapsed -->
+      <div class="absolute inset-0 flex flex-col items-center py-gutter gap-md transition-opacity duration-200"
+           [class.opacity-100]="verdictCollapsed"
+           [class.opacity-0]="!verdictCollapsed"
+           [class.pointer-events-none]="!verdictCollapsed">
+
+        <!-- Expand button -->
+        <button (click)="verdictCollapsed = false"
+                class="w-7 h-7 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center transition-all hover:scale-110 shrink-0">
+          <span class="material-symbols-outlined text-[16px] text-on-surface-variant">chevron_left</span>
+        </button>
+
+        <!-- Verdict status dot -->
+        <div *ngIf="activeSession"
+             class="w-2.5 h-2.5 rounded-full shrink-0"
+             [class.bg-tertiary]="activeSession.final_verdict === 'GO'"
+             [class.bg-error]="activeSession.final_verdict === 'NO-GO'"
+             [class.bg-amber-400]="activeSession.final_verdict === 'NEGOTIATE'"
+             [class.bg-primary]="activeSession.final_verdict === 'EVALUATING'"
+             [class.animate-pulse]="activeSession.final_verdict === 'EVALUATING' || activeSession.final_verdict === 'GO'">
+        </div>
+
+        <!-- Rotated label -->
+        <span class="text-[9px] uppercase tracking-widest text-on-surface-variant/40 font-semibold whitespace-nowrap"
+              style="writing-mode: vertical-rl; transform: rotate(180deg)">
           Executive Verdict
-        </h2>
+        </span>
+      </div>
 
-        <!-- Active session verdict badge block -->
-        <div *ngIf="activeSession" class="glass-panel rounded-xl p-md flex flex-col items-center gap-sm mt-sm border-white/10 relative overflow-hidden shadow-2xl">
-          <!-- Pulsing blur glow -->
-          <div *ngIf="activeSession.final_verdict === 'GO'" class="absolute top-0 left-1/2 -translate-x-1/2 w-full h-1/2 bg-tertiary/10 blur-2xl pointer-events-none animate-pulse"></div>
-          <div *ngIf="activeSession.final_verdict === 'NO-GO'" class="absolute top-0 left-1/2 -translate-x-1/2 w-full h-1/2 bg-error/15 blur-2xl pointer-events-none animate-pulse"></div>
-          
-          <div 
-            [class]="'w-20 h-20 rounded-full flex items-center justify-center mb-sm relative ' + 
-                     (activeSession.final_verdict === 'GO' ? 'animate-breathe-go bg-tertiary/10' : 
-                      activeSession.final_verdict === 'NO-GO' ? 'border border-error/50 bg-error/10' : 'animate-breathe bg-white/5')">
-            <span 
-              [class]="'font-display-lg text-[22px] font-bold z-10 neon-text-primary ' + 
-                       (activeSession.final_verdict === 'GO' ? 'text-tertiary-fixed' : 
-                        activeSession.final_verdict === 'NO-GO' ? 'text-error' : 'text-primary')">
-              {{ activeSession.final_verdict }}
-            </span>
+      <!-- ── EXPANDED PANEL ── shown when !verdictCollapsed -->
+      <div class="w-full h-full flex flex-col transition-opacity duration-200 overflow-hidden"
+           [class.opacity-100]="!verdictCollapsed"
+           [class.opacity-0]="verdictCollapsed"
+           [class.pointer-events-none]="verdictCollapsed">
+
+        <div class="flex flex-col h-full gap-md p-gutter overflow-y-auto">
+
+          <!-- Header -->
+          <div class="flex items-center justify-between border-b border-white/10 pb-sm shrink-0">
+            <h2 class="font-headline-md text-body-lg font-semibold text-on-surface uppercase tracking-widest">
+              Executive Verdict
+            </h2>
+            <button (click)="verdictCollapsed = true"
+                    class="w-7 h-7 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center transition-all hover:scale-110">
+              <span class="material-symbols-outlined text-[16px] text-on-surface-variant">chevron_right</span>
+            </button>
           </div>
-          
-          <p class="font-body-md text-[13px] text-center text-on-surface-variant max-w-[90%] leading-snug">
-            {{ activeSession.final_verdict === 'EVALUATING' ? 'Swarm deliberation in progress. Awaiting Board of Directors decision...' : 
-               activeSession.final_verdict === 'GO' ? 'Consensus reached. Roster audits validated. Proceed under baseline parameters.' :
-               activeSession.final_verdict === 'NEGOTIATE' ? 'Initial criteria rejected. Re-negotiating contract parameters. Propose modified terms.' :
-               'Objections failed consensus check. Project parameters exceed risk tolerance boundaries.' }}
-          </p>
-        </div>
 
-        <div *ngIf="!activeSession" class="glass-panel rounded-xl p-6 flex flex-col items-center gap-sm mt-sm border-dashed border-white/10 justify-center min-h-[160px] opacity-40">
-          <span class="material-symbols-outlined text-3xl">balance</span>
-          <p class="text-caption text-center">Awaiting execution data</p>
-        </div>
-
-        <!-- Parameters Audit details -->
-        <div *ngIf="activeSession && activeSession.final_verdict !== 'EVALUATING'" class="flex flex-col gap-sm mt-sm">
-          <div class="flex justify-between items-center border-b border-white/5 pb-2">
-            <span class="font-label-md text-caption text-on-surface-variant">Target Cost</span>
-            <span class="font-body-md text-body-md text-on-surface font-semibold">
-              ${{ activeSession.final_budget.toLocaleString() }}
-            </span>
+          <!-- Active session verdict badge block -->
+          <div *ngIf="activeSession" class="glass-panel rounded-xl p-md flex flex-col items-center gap-sm border-white/10 relative overflow-hidden shadow-2xl shrink-0">
+            <div *ngIf="activeSession.final_verdict === 'GO'" class="absolute top-0 left-1/2 -translate-x-1/2 w-full h-1/2 bg-tertiary/10 blur-2xl pointer-events-none animate-pulse"></div>
+            <div *ngIf="activeSession.final_verdict === 'NO-GO'" class="absolute top-0 left-1/2 -translate-x-1/2 w-full h-1/2 bg-error/15 blur-2xl pointer-events-none animate-pulse"></div>
+            <div [class]="'w-20 h-20 rounded-full flex items-center justify-center mb-sm relative ' +
+                          (activeSession.final_verdict === 'GO' ? 'animate-breathe-go bg-tertiary/10' :
+                           activeSession.final_verdict === 'NO-GO' ? 'border border-error/50 bg-error/10' : 'animate-breathe bg-white/5')">
+              <span [class]="'font-display-lg text-[22px] font-bold z-10 neon-text-primary ' +
+                             (activeSession.final_verdict === 'GO' ? 'text-tertiary-fixed' :
+                              activeSession.final_verdict === 'NO-GO' ? 'text-error' : 'text-primary')">
+                {{ activeSession.final_verdict }}
+              </span>
+            </div>
+            <p class="font-body-md text-[13px] text-center text-on-surface-variant max-w-[90%] leading-snug">
+              {{ activeSession.final_verdict === 'EVALUATING' ? 'Swarm deliberation in progress. Awaiting Board of Directors decision...' :
+                 activeSession.final_verdict === 'GO' ? 'Consensus reached. Roster audits validated. Proceed under baseline parameters.' :
+                 activeSession.final_verdict === 'NEGOTIATE' ? 'Initial criteria rejected. Re-negotiating contract parameters. Propose modified terms.' :
+                 'Objections failed consensus check. Project parameters exceed risk tolerance boundaries.' }}
+            </p>
           </div>
-          <div class="flex justify-between items-center border-b border-white/5 pb-2">
-            <span class="font-label-md text-caption text-on-surface-variant">Allocated Timeline</span>
-            <span class="font-body-md text-body-md text-on-surface font-semibold">
-              {{ activeSession.timeline_months }} Months
-            </span>
-          </div>
-        </div>
 
-        <!-- Risks & Advantages -->
-        <div *ngIf="activeSession && activeSession.final_verdict !== 'EVALUATING'" class="flex flex-col gap-xs mt-sm flex-1 overflow-y-auto">
-          <!-- Advantages -->
-          <ng-container *ngIf="activeSession.final_verdict === 'GO' || activeSession.final_verdict === 'NEGOTIATE'">
-            <h4 class="font-label-md text-caption uppercase text-on-surface-variant tracking-wider mt-sm mb-xs">Strategic Advantages</h4>
+          <div *ngIf="!activeSession" class="glass-panel rounded-xl p-6 flex flex-col items-center gap-sm border-dashed border-white/10 justify-center min-h-[140px] opacity-40 shrink-0">
+            <span class="material-symbols-outlined text-3xl">balance</span>
+            <p class="text-caption text-center">Awaiting execution data</p>
+          </div>
+
+          <!-- Parameters -->
+          <div *ngIf="activeSession && activeSession.final_verdict !== 'EVALUATING'" class="flex flex-col gap-sm shrink-0">
+            <div class="flex justify-between items-center border-b border-white/5 pb-2">
+              <span class="font-label-md text-caption text-on-surface-variant">Target Cost</span>
+              <span class="font-body-md text-body-md text-on-surface font-semibold">${{ activeSession.final_budget.toLocaleString() }}</span>
+            </div>
+            <div class="flex justify-between items-center border-b border-white/5 pb-2">
+              <span class="font-label-md text-caption text-on-surface-variant">Allocated Timeline</span>
+              <span class="font-body-md text-body-md text-on-surface font-semibold">{{ activeSession.timeline_months }} Months</span>
+            </div>
+          </div>
+
+          <!-- Advantages & Audit -->
+          <div *ngIf="activeSession && activeSession.final_verdict !== 'EVALUATING'" class="flex flex-col gap-xs flex-1 overflow-y-auto">
+            <ng-container *ngIf="activeSession.final_verdict === 'GO' || activeSession.final_verdict === 'NEGOTIATE'">
+              <h4 class="font-label-md text-caption uppercase text-on-surface-variant tracking-wider mb-xs">Strategic Advantages</h4>
+              <ul class="flex flex-col gap-2 mb-sm">
+                <li class="flex items-start gap-2">
+                  <span class="material-symbols-outlined text-tertiary text-[16px] mt-[2px]">check_circle</span>
+                  <span class="font-body-md text-caption text-on-surface/85">Industry alignment checks resolved</span>
+                </li>
+                <li class="flex items-start gap-2">
+                  <span class="material-symbols-outlined text-tertiary text-[16px] mt-[2px]">check_circle</span>
+                  <span class="font-body-md text-caption text-on-surface/85">Roster capacity validated</span>
+                </li>
+              </ul>
+            </ng-container>
+            <h4 class="font-label-md text-caption uppercase text-on-surface-variant tracking-wider mb-xs">Audit Details</h4>
             <ul class="flex flex-col gap-2">
               <li class="flex items-start gap-2">
-                <span class="material-symbols-outlined text-tertiary text-[16px] mt-[2px]">check_circle</span>
-                <span class="font-body-md text-caption text-on-surface/85">Industry alignment checks resolved</span>
-              </li>
-              <li class="flex items-start gap-2">
-                <span class="material-symbols-outlined text-tertiary text-[16px] mt-[2px]">check_circle</span>
-                <span class="font-body-md text-caption text-on-surface/85">Roster capacity validated</span>
+                <span [class]="'material-symbols-outlined text-[16px] mt-[2px] ' + (activeSession.final_verdict === 'NO-GO' ? 'text-error' : 'text-amber-400')">
+                  {{ activeSession.final_verdict === 'NO-GO' ? 'cancel' : 'info' }}
+                </span>
+                <span class="font-body-md text-caption text-on-surface/85">
+                  {{ activeSession.final_verdict === 'NO-GO' ? 'Critical resource or financial compliance barrier' :
+                     activeSession.final_verdict === 'NEGOTIATE' ? 'Renegotiated budget margins are required' :
+                     'Consensus was fully completed without complaints' }}
+                </span>
               </li>
             </ul>
-          </ng-container>
+          </div>
 
-          <!-- Deficits -->
-          <h4 class="font-label-md text-caption uppercase text-on-surface-variant tracking-wider mt-md mb-xs">Audit Details</h4>
-          <ul class="flex flex-col gap-2">
-            <li class="flex items-start gap-2">
-              <span [class]="'material-symbols-outlined text-[16px] mt-[2px] ' + (activeSession.final_verdict === 'NO-GO' ? 'text-error' : 'text-amber-400')">
-                {{ activeSession.final_verdict === 'NO-GO' ? 'cancel' : 'info' }}
-              </span>
-              <span class="font-body-md text-caption text-on-surface/85">
-                {{ activeSession.final_verdict === 'NO-GO' ? 'Critical resource or financial compliance barrier' : 
-                   activeSession.final_verdict === 'NEGOTIATE' ? 'Renegotiated budget margins are required' : 
-                   'Consensus was fully completed without complaints' }}
-              </span>
-            </li>
-          </ul>
         </div>
       </div>
     </aside>

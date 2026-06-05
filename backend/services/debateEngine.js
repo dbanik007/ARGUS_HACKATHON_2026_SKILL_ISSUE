@@ -187,7 +187,7 @@ const callGemini = async (agentName, contextPrompt, session, employees, debateHi
 
 // ─── Context prompt builder ──────────────────────────────────────────────────
 
-const buildContext = (session, roster, employees, debateHistory, extraNote) => {
+const buildContext = (session, roster, employees, debateHistory, extraNote, missionBriefing) => {
   const availableDevs = employees.filter(e => e.available);
   const hipaaDevs = employees.filter(e => e.hipaa_certified && e.available);
 
@@ -209,6 +209,7 @@ Available: ${availableDevs.length} | HIPAA-certified: ${hipaaDevs.length}
 
 TRANSCRIPT:
 ${historyText}
+${missionBriefing ? `\nMISSION BRIEFING FROM COMMAND: ${missionBriefing}` : ''}
 ${extraNote ? `\nNOTE: ${extraNote}` : ''}
 
 Provide your assessment:`;
@@ -216,7 +217,7 @@ Provide your assessment:`;
 
 // ─── Main debate orchestrator ────────────────────────────────────────────────
 
-const runDebateAsync = async (session, roster, emitter, pool) => {
+const runDebateAsync = async (session, roster, emitter, pool, missionBriefing = null) => {
   const sessionId = session.id;
   const employees = getEmployees();
   const debateHistory = [];
@@ -226,7 +227,7 @@ const runDebateAsync = async (session, roster, emitter, pool) => {
   const runAgent = async (agentName, round, extraNote = '') => {
     emit('typing', { sender: agentName });
 
-    const contextPrompt = buildContext(session, roster, employees, debateHistory, extraNote);
+    const contextPrompt = buildContext(session, roster, employees, debateHistory, extraNote, missionBriefing);
     const { text: messageText } = await callGemini(agentName, contextPrompt, session, employees, debateHistory);
 
     const msg = { sender: agentName, message_text: messageText, negotiation_round: round };

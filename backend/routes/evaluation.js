@@ -12,7 +12,7 @@ debateEmitter.setMaxListeners(200);
 
 // 1. Start Evaluation Session — creates DB record, triggers async Gemini debate
 router.post('/start', authenticateJWT, async (req, res) => {
-  const { tenderName, clientName, budget, timelineMonths, industry, roster } = req.body;
+  const { tenderName, clientName, budget, timelineMonths, industry, roster, missionBriefing } = req.body;
 
   const trimmedTender = typeof tenderName === 'string' ? tenderName.trim() : '';
   const trimmedClient = typeof clientName === 'string' ? clientName.trim() : '';
@@ -72,7 +72,7 @@ router.post('/start', authenticateJWT, async (req, res) => {
     const session = sessionRes.rows[0];
 
     // Fire-and-forget: Gemini debate runs async, events flow via debateEmitter
-    runDebateAsync(session, roster, debateEmitter, pool).catch(err => {
+    runDebateAsync(session, roster, debateEmitter, pool, missionBriefing || null).catch(err => {
       console.error(`Unhandled debate error for session ${session.id}:`, err.message);
     });
 
