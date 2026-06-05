@@ -76,7 +76,8 @@ router.post('/start', authenticateJWT, async (req, res) => {
 
     // Fire-and-forget: Gemini debate runs async, events flow via debateEmitter
     const isCancelled = () => cancelledSessions.has(session.id);
-    runDebateAsync(session, roster, debateEmitter, pool, missionBriefing || null, req.user.id, isCancelled)
+    const safeBriefing = missionBriefing ? String(missionBriefing).slice(0, 1000) : null;
+    runDebateAsync(session, roster, debateEmitter, pool, safeBriefing, req.user.id, isCancelled)
       .finally(() => cancelledSessions.delete(session.id))
       .catch(err => {
         console.error(`Unhandled debate error for session ${session.id}:`, err.message);

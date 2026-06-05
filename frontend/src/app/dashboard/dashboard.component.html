@@ -102,20 +102,12 @@
         <span [class.hidden]="isSidebarCollapsed" class="text-sm font-medium whitespace-nowrap">Agent Training</span>
       </button>
 
-      <button class="w-full flex items-center gap-3 p-3 rounded-lg text-on-surface-variant hover:bg-white/5 hover:text-on-surface transition-colors">
-        <span class="material-symbols-outlined">grid_view</span>
-        <span [class.hidden]="isSidebarCollapsed" class="text-sm font-medium whitespace-nowrap">Risk Matrix</span>
-      </button>
-      
       <button (click)="activeTab = 'settings'; loadCompanyDetails(); loadEmployees()" class="w-full flex items-center gap-3 p-3 rounded-lg text-on-surface-variant hover:bg-white/5 hover:text-on-surface transition-colors mt-auto" [class.bg-white_5]="activeTab === 'settings'" [class.border-l-2]="activeTab === 'settings'" [class.border-tertiary]="activeTab === 'settings'">
         <span class="material-symbols-outlined">settings</span>
         <span [class.hidden]="isSidebarCollapsed" class="text-sm font-medium whitespace-nowrap">Settings</span>
       </button>
     </div>
 
-    <!-- Collapse Toggle -->
-    <div class="p-4 border-t border-white/10 flex justify-end">
-      <button (click)="isSidebarCollapsed = !isSidebarCollapsed" class="p-2 rounded hover:bg-white/5 text-on-surface-variant flex items-center justify-center transition-colors">
         <span class="material-symbols-outlined transition-transform duration-300" [class.rotate-180]="isSidebarCollapsed">keyboard_double_arrow_left</span>
       </button>
     </div>
@@ -304,8 +296,17 @@
         </div>
 
         <!-- Chat messages loop -->
-        <div *ngFor="let msg of debateMessages" 
-             class="glass-panel p-sm rounded-lg flex gap-sm group hover:scale-[1.01] transition-all duration-300 relative max-w-[85%] border"
+        <ng-container *ngFor="let msg of debateMessages">
+
+          <!-- Session divider -->
+          <div *ngIf="msg.sender === 'NewEvaluation'" class="w-full flex items-center gap-sm my-xs self-stretch">
+            <div class="flex-1 h-px bg-white/10"></div>
+            <span class="text-[10px] uppercase tracking-wider text-on-surface-variant/40 px-sm whitespace-nowrap">New Evaluation</span>
+            <div class="flex-1 h-px bg-white/10"></div>
+          </div>
+
+          <div *ngIf="msg.sender !== 'NewEvaluation'"
+               class="glass-panel p-sm rounded-lg flex gap-sm group hover:scale-[1.01] transition-all duration-300 relative max-w-[85%] border"
              [class.self-end]="msg.sender === 'User'"
              [class.self-start]="msg.sender !== 'User'"
              [class.bg-primary/[0.04]]="msg.sender === 'User'"
@@ -340,7 +341,9 @@
             </div>
             <p class="font-body-md text-caption text-on-surface-variant/90 leading-relaxed whitespace-pre-line">{{ msg.message_text }}</p>
           </div>
-        </div>
+          </div>
+
+        </ng-container>
 
         <!-- Live Typing Indicator -->
         <div *ngIf="evaluating" class="glass-panel p-sm rounded-lg flex gap-sm relative opacity-85 animate-pulse bg-white/2 max-w-[85%] self-start border border-white/5">
@@ -384,12 +387,13 @@
             </button>
           </div>
 
-          <div class="flex items-end gap-sm p-sm">
+          <div class="flex items-end gap-sm p-sm pb-1">
             <span class="text-primary font-mono text-[15px] pb-[7px] select-none shrink-0">›</span>
             <textarea
               [(ngModel)]="missionBriefing"
               [disabled]="evaluating || errors['roster']"
               (keydown.enter)="onBriefingEnter($event)"
+              maxlength="1000"
               rows="2"
               placeholder="Mission briefing — type evaluation directives then press Enter or → to deploy the swarm..."
               class="flex-1 bg-transparent resize-none font-mono text-[12px] text-on-surface placeholder:text-on-surface-variant/35 focus:outline-none leading-relaxed py-1.5 disabled:opacity-0">
@@ -406,8 +410,9 @@
           </div>
 
           <!-- Active hint row -->
-          <div *ngIf="!evaluating" class="flex items-center gap-xs px-sm pb-[6px]">
+          <div *ngIf="!evaluating" class="flex items-center justify-between gap-xs px-sm pb-[6px]">
             <span class="text-[9px] text-on-surface-variant/30 font-mono">Enter to send · Shift+Enter for newline</span>
+            <span class="text-[9px] font-mono" [class.text-error]="(missionBriefing?.length || 0) >= 900" [class.text-on-surface-variant]="(missionBriefing?.length || 0) < 900">{{missionBriefing?.length || 0}}/1000</span>
           </div>
         </div>
       </div>
@@ -461,10 +466,26 @@
             <h2 class="font-headline-md text-body-lg font-semibold text-on-surface uppercase tracking-widest">
               Executive Verdict
             </h2>
-            <button (click)="verdictCollapsed = true"
-                    class="w-7 h-7 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center transition-all hover:scale-110">
-              <span class="material-symbols-outlined text-[16px] text-on-surface-variant">chevron_right</span>
-            </button>
+            <div class="flex items-center gap-xs">
+              <!-- Copy Markdown -->
+              <button (click)="copyVerdictMarkdown()"
+                      *ngIf="activeSession && activeSession.final_verdict !== 'EVALUATING'"
+                      class="w-7 h-7 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center transition-all hover:scale-110 active:scale-95"
+                      title="Copy Verdict to Clipboard">
+                <span class="material-symbols-outlined text-[16px] text-on-surface-variant">content_copy</span>
+              </button>
+              <!-- Export/Download Markdown -->
+              <button (click)="exportVerdictMarkdown()"
+                      *ngIf="activeSession && activeSession.final_verdict !== 'EVALUATING'"
+                      class="w-7 h-7 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center transition-all hover:scale-110 active:scale-95"
+                      title="Download Markdown Report">
+                <span class="material-symbols-outlined text-[16px] text-on-surface-variant">download</span>
+              </button>
+              <button (click)="verdictCollapsed = true"
+                      class="w-7 h-7 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center transition-all hover:scale-110">
+                <span class="material-symbols-outlined text-[16px] text-on-surface-variant">chevron_right</span>
+              </button>
+            </div>
           </div>
 
           <!-- Active session verdict badge block -->
@@ -680,48 +701,8 @@
 
         <!-- Grid -->
         <div class="grid grid-cols-2 gap-6 mb-6">
-          
-          <!-- Card 1: Account Executive -->
-          <div class="glass-panel p-6 rounded-xl flex flex-col gap-6 relative border border-white/5">
-            <div class="flex justify-between items-start">
-              <div class="flex gap-4">
-                <div class="w-10 h-10 rounded border border-indigo-500/50 flex items-center justify-center bg-indigo-500/10">
-                  <span class="material-symbols-outlined text-indigo-400">person</span>
-                </div>
-                <div>
-                  <h3 class="text-body-lg font-bold text-on-surface">Account Executive</h3>
-                  <p class="text-[10px] text-on-surface-variant uppercase tracking-widest mt-1">Client Relations & Tone</p>
-                </div>
-              </div>
-              <div class="flex items-center gap-2 bg-white/5 px-2 py-1 rounded text-[10px] text-on-surface-variant uppercase tracking-wider border border-white/10">
-                <div class="w-1.5 h-1.5 rounded-full bg-tertiary"></div> SYNCHRONIZED
-              </div>
-            </div>
 
-            <!-- Sliders -->
-            <div class="flex flex-col gap-4">
-              <div>
-                <div class="flex justify-between text-[11px] text-on-surface-variant uppercase mb-2">
-                  <span>Caution</span> <span class="text-primary font-bold">{{agentConfigs['Account Executive'].slider1}}%</span> <span>Aggressiveness</span>
-                </div>
-                <input type="range" [(ngModel)]="agentConfigs['Account Executive'].slider1" min="0" max="100" class="w-full accent-primary">
-              </div>
-              <div>
-                <div class="flex justify-between text-[11px] text-on-surface-variant uppercase mb-2">
-                  <span>Low Risk</span> <span class="text-primary font-bold">{{agentConfigs['Account Executive'].slider2}}%</span> <span>High Tolerance</span>
-                </div>
-                <input type="range" [(ngModel)]="agentConfigs['Account Executive'].slider2" min="0" max="100" class="w-full accent-primary">
-              </div>
-            </div>
-
-            <!-- Textarea -->
-            <div class="flex flex-col gap-2">
-              <label class="text-[11px] text-on-surface-variant uppercase tracking-widest">Custom Directives</label>
-              <textarea [(ngModel)]="agentConfigs['Account Executive'].customDirectives" class="w-full h-24 bg-surface-container/50 border border-white/10 rounded-lg p-3 text-sm text-on-surface focus:outline-none focus:border-primary transition-colors resize-none" placeholder="e.g., Prioritize long-term relationship building over immediate marginal gains..."></textarea>
-            </div>
-          </div>
-
-          <!-- Card 2: Legal & Compliance -->
+          <!-- Card 1: Legal & Compliance -->
           <div class="glass-panel p-6 rounded-xl flex flex-col gap-6 relative border border-white/5">
             <div class="flex justify-between items-start">
               <div class="flex gap-4">
@@ -740,22 +721,27 @@
 
             <div class="flex flex-col gap-4">
               <div>
-                <div class="flex justify-between text-[11px] text-on-surface-variant uppercase mb-2">
+                <div class="flex justify-between text-[11px] text-on-surface-variant uppercase mb-1">
                   <span>Strict Adherence</span> <span class="text-primary font-bold">{{agentConfigs['Legal'].slider1}}%</span> <span>Interpretative</span>
                 </div>
+                <p class="text-[10px] text-on-surface-variant/50 mb-2">Higher % = agent interprets regulations flexibly and looks for creative compliance paths rather than blocking outright.</p>
                 <input type="range" [(ngModel)]="agentConfigs['Legal'].slider1" min="0" max="100" class="w-full accent-primary">
               </div>
               <div>
-                <div class="flex justify-between text-[11px] text-on-surface-variant uppercase mb-2">
+                <div class="flex justify-between text-[11px] text-on-surface-variant uppercase mb-1">
                   <span>Zero Tolerance</span> <span class="text-primary font-bold">{{agentConfigs['Legal'].slider2}}%</span> <span>Edge Cases</span>
                 </div>
+                <p class="text-[10px] text-on-surface-variant/50 mb-2">Higher % = minor compliance gaps are acceptable; lower % = any unresolved gap becomes a hard blocker on approval.</p>
                 <input type="range" [(ngModel)]="agentConfigs['Legal'].slider2" min="0" max="100" class="w-full accent-primary">
               </div>
             </div>
 
             <div class="flex flex-col gap-2">
-              <label class="text-[11px] text-on-surface-variant uppercase tracking-widest">Custom Directives</label>
-              <textarea [(ngModel)]="agentConfigs['Legal'].customDirectives" class="w-full h-24 bg-surface-container/50 border border-white/10 rounded-lg p-3 text-sm text-on-surface focus:outline-none focus:border-primary transition-colors resize-none" placeholder="Flag any IP clauses that deviate from standard regional templates..."></textarea>
+              <div class="flex justify-between items-center">
+                <label class="text-[11px] text-on-surface-variant uppercase tracking-widest">Custom Directives</label>
+                <span class="text-[10px]" [class.text-error]="(agentConfigs['Legal'].customDirectives?.length || 0) >= 450" [class.text-on-surface-variant]="(agentConfigs['Legal'].customDirectives?.length || 0) < 450">{{agentConfigs['Legal'].customDirectives?.length || 0}}/500</span>
+              </div>
+              <textarea [(ngModel)]="agentConfigs['Legal'].customDirectives" maxlength="500" class="w-full h-24 bg-surface-container/50 border border-white/10 rounded-lg p-3 text-sm text-on-surface focus:outline-none focus:border-primary transition-colors resize-none" placeholder="Flag any IP clauses that deviate from standard regional templates..."></textarea>
             </div>
           </div>
 
@@ -778,22 +764,27 @@
 
             <div class="flex flex-col gap-4">
               <div>
-                <div class="flex justify-between text-[11px] text-on-surface-variant uppercase mb-2">
+                <div class="flex justify-between text-[11px] text-on-surface-variant uppercase mb-1">
                   <span>Conservative Est.</span> <span class="text-primary font-bold">{{agentConfigs['Resource'].slider1}}%</span> <span>Optimistic Est.</span>
                 </div>
+                <p class="text-[10px] text-on-surface-variant/50 mb-2">Higher % = agent assumes best-case staffing and timelines; lower % = adds buffer and flags capacity risks more aggressively.</p>
                 <input type="range" [(ngModel)]="agentConfigs['Resource'].slider1" min="0" max="100" class="w-full accent-primary">
               </div>
               <div>
-                <div class="flex justify-between text-[11px] text-on-surface-variant uppercase mb-2">
+                <div class="flex justify-between text-[11px] text-on-surface-variant uppercase mb-1">
                   <span>Proven Tech Only</span> <span class="text-primary font-bold">{{agentConfigs['Resource'].slider2}}%</span> <span>Bleeding Edge</span>
                 </div>
+                <p class="text-[10px] text-on-surface-variant/50 mb-2">Higher % = agent endorses experimental or emerging tech stacks; lower % = insists on battle-tested, low-risk technology choices.</p>
                 <input type="range" [(ngModel)]="agentConfigs['Resource'].slider2" min="0" max="100" class="w-full accent-primary">
               </div>
             </div>
 
             <div class="flex flex-col gap-2">
-              <label class="text-[11px] text-on-surface-variant uppercase tracking-widest">Custom Directives</label>
-              <textarea [(ngModel)]="agentConfigs['Resource'].customDirectives" class="w-full h-24 bg-surface-container/50 border border-white/10 rounded-lg p-3 text-sm text-on-surface focus:outline-none focus:border-primary transition-colors resize-none" placeholder="Assume API v3 migration is completed for all resource calculations..."></textarea>
+              <div class="flex justify-between items-center">
+                <label class="text-[11px] text-on-surface-variant uppercase tracking-widest">Custom Directives</label>
+                <span class="text-[10px]" [class.text-error]="(agentConfigs['Resource'].customDirectives?.length || 0) >= 450" [class.text-on-surface-variant]="(agentConfigs['Resource'].customDirectives?.length || 0) < 450">{{agentConfigs['Resource'].customDirectives?.length || 0}}/500</span>
+              </div>
+              <textarea [(ngModel)]="agentConfigs['Resource'].customDirectives" maxlength="500" class="w-full h-24 bg-surface-container/50 border border-white/10 rounded-lg p-3 text-sm text-on-surface focus:outline-none focus:border-primary transition-colors resize-none" placeholder="Assume API v3 migration is completed for all resource calculations..."></textarea>
             </div>
           </div>
 
@@ -816,64 +807,153 @@
 
             <div class="flex flex-col gap-4">
               <div>
-                <div class="flex justify-between text-[11px] text-on-surface-variant uppercase mb-2">
+                <div class="flex justify-between text-[11px] text-on-surface-variant uppercase mb-1">
                   <span>Margin Protection</span> <span class="text-primary font-bold">{{agentConfigs['Financial'].slider1}}%</span> <span>Aggressive Pricing</span>
                 </div>
+                <p class="text-[10px] text-on-surface-variant/50 mb-2">Higher % = agent accepts lower profit margins to win the deal; lower % = demands strong margins and flags thin-margin bids as unviable.</p>
                 <input type="range" [(ngModel)]="agentConfigs['Financial'].slider1" min="0" max="100" class="w-full accent-primary">
               </div>
               <div>
-                <div class="flex justify-between text-[11px] text-on-surface-variant uppercase mb-2">
+                <div class="flex justify-between text-[11px] text-on-surface-variant uppercase mb-1">
                   <span>Fixed Costs Preference</span> <span class="text-primary font-bold">{{agentConfigs['Financial'].slider2}}%</span> <span>Variable Leverage</span>
                 </div>
+                <p class="text-[10px] text-on-surface-variant/50 mb-2">Higher % = agent favours variable/performance-linked cost models; lower % = insists on fixed, predictable cost structures.</p>
                 <input type="range" [(ngModel)]="agentConfigs['Financial'].slider2" min="0" max="100" class="w-full accent-primary">
               </div>
             </div>
 
             <div class="flex flex-col gap-2">
-              <label class="text-[11px] text-on-surface-variant uppercase tracking-widest">Custom Directives</label>
-              <textarea [(ngModel)]="agentConfigs['Financial'].customDirectives" class="w-full h-24 bg-surface-container/50 border border-white/10 rounded-lg p-3 text-sm text-on-surface focus:outline-none focus:border-primary transition-colors resize-none" placeholder="Model for Q3 inflation spike scenario..."></textarea>
-            </div>
-          </div>
-        </div>
-
-        <!-- Full width card: Board of Directors -->
-        <div class="glass-panel p-6 rounded-xl flex flex-col gap-6 relative border border-white/5 mb-8">
-          <div class="flex justify-between items-start">
-            <div class="flex gap-4">
-              <div class="w-10 h-10 rounded border border-emerald-500/50 flex items-center justify-center bg-emerald-500/10">
-                <span class="material-symbols-outlined text-emerald-400">corporate_fare</span>
+              <div class="flex justify-between items-center">
+                <label class="text-[11px] text-on-surface-variant uppercase tracking-widest">Custom Directives</label>
+                <span class="text-[10px]" [class.text-error]="(agentConfigs['Financial'].customDirectives?.length || 0) >= 450" [class.text-on-surface-variant]="(agentConfigs['Financial'].customDirectives?.length || 0) < 450">{{agentConfigs['Financial'].customDirectives?.length || 0}}/500</span>
               </div>
-              <div>
-                <h3 class="text-body-lg font-bold text-on-surface">Business & Risk Assessment</h3>
-                <p class="text-[10px] text-on-surface-variant uppercase tracking-widest mt-1">Holistic Strategic Evaluation</p>
-              </div>
-            </div>
-            <div class="flex items-center gap-2 bg-white/5 px-2 py-1 rounded text-[10px] text-on-surface-variant uppercase tracking-wider border border-white/10">
-              <div class="w-1.5 h-1.5 rounded-full bg-tertiary"></div> SYNCHRONIZED MASTER
+              <textarea [(ngModel)]="agentConfigs['Financial'].customDirectives" maxlength="500" class="w-full h-24 bg-surface-container/50 border border-white/10 rounded-lg p-3 text-sm text-on-surface focus:outline-none focus:border-primary transition-colors resize-none" placeholder="Model for Q3 inflation spike scenario..."></textarea>
             </div>
           </div>
 
-          <div class="flex gap-8">
-            <div class="flex flex-col gap-4 flex-1">
-              <div>
-                <div class="flex justify-between text-[11px] text-on-surface-variant uppercase mb-2">
-                  <span>Defensive Strategy</span> <span class="text-primary font-bold">{{agentConfigs['Board of Directors'].slider1}}%</span> <span>Market Capture</span>
+          <!-- Card 5: Technical Architect -->
+          <div class="glass-panel p-6 rounded-xl flex flex-col gap-6 relative border border-white/5">
+            <div class="flex justify-between items-start">
+              <div class="flex gap-4">
+                <div class="w-10 h-10 rounded border border-violet-500/50 flex items-center justify-center bg-violet-500/10">
+                  <span class="material-symbols-outlined text-violet-400">architecture</span>
                 </div>
-                <input type="range" [(ngModel)]="agentConfigs['Board of Directors'].slider1" min="0" max="100" class="w-full accent-primary">
+                <div>
+                  <h3 class="text-body-lg font-bold text-on-surface">Technical Architect</h3>
+                  <p class="text-[10px] text-on-surface-variant uppercase tracking-widest mt-1">Delivery Risk & Stack</p>
+                </div>
+              </div>
+              <div class="flex items-center gap-2 bg-white/5 px-2 py-1 rounded text-[10px] text-on-surface-variant uppercase tracking-wider border border-white/10">
+                <div class="w-1.5 h-1.5 rounded-full bg-tertiary"></div> SYNCHRONIZED
+              </div>
+            </div>
+            <div class="flex flex-col gap-4">
+              <div>
+                <div class="flex justify-between text-[11px] text-on-surface-variant uppercase mb-1">
+                  <span>Proven Patterns</span> <span class="text-primary font-bold">{{agentConfigs['Technical Architect'].slider1}}%</span> <span>Cutting Edge</span>
+                </div>
+                <p class="text-[10px] text-on-surface-variant/50 mb-2">Higher % = agent approves experimental architectures and emerging frameworks; lower % = insists on battle-tested, low-risk design patterns.</p>
+                <input type="range" [(ngModel)]="agentConfigs['Technical Architect'].slider1" min="0" max="100" class="w-full accent-primary">
               </div>
               <div>
-                <div class="flex justify-between text-[11px] text-on-surface-variant uppercase mb-2">
-                  <span>Minimize Exposure</span> <span class="text-primary font-bold">{{agentConfigs['Board of Directors'].slider2}}%</span> <span>High Beta</span>
+                <div class="flex justify-between text-[11px] text-on-surface-variant uppercase mb-1">
+                  <span>Pragmatic Review</span> <span class="text-primary font-bold">{{agentConfigs['Technical Architect'].slider2}}%</span> <span>Zero Debt</span>
                 </div>
-                <input type="range" [(ngModel)]="agentConfigs['Board of Directors'].slider2" min="0" max="100" class="w-full accent-primary">
+                <p class="text-[10px] text-on-surface-variant/50 mb-2">Higher % = agent demands zero technical debt and strict code quality gates; lower % = accepts pragmatic shortcuts to meet timeline.</p>
+                <input type="range" [(ngModel)]="agentConfigs['Technical Architect'].slider2" min="0" max="100" class="w-full accent-primary">
               </div>
             </div>
-
-            <div class="flex flex-col gap-2 flex-1">
-              <label class="text-[11px] text-on-surface-variant uppercase tracking-widest">Overarching Master Directives</label>
-              <textarea [(ngModel)]="agentConfigs['Board of Directors'].customDirectives" class="w-full h-full bg-surface-container/50 border border-white/10 rounded-lg p-3 text-sm text-on-surface focus:outline-none focus:border-primary transition-colors resize-none" placeholder="This tender is a 'must-win' for Q4..."></textarea>
+            <div class="flex flex-col gap-2">
+              <div class="flex justify-between items-center">
+                <label class="text-[11px] text-on-surface-variant uppercase tracking-widest">Custom Directives</label>
+                <span class="text-[10px]" [class.text-error]="(agentConfigs['Technical Architect'].customDirectives?.length || 0) >= 450" [class.text-on-surface-variant]="(agentConfigs['Technical Architect'].customDirectives?.length || 0) < 450">{{agentConfigs['Technical Architect'].customDirectives?.length || 0}}/500</span>
+              </div>
+              <textarea [(ngModel)]="agentConfigs['Technical Architect'].customDirectives" maxlength="500" class="w-full h-24 bg-surface-container/50 border border-white/10 rounded-lg p-3 text-sm text-on-surface focus:outline-none focus:border-primary transition-colors resize-none" placeholder="e.g., Flag any microservice designs with more than 8 bounded contexts..."></textarea>
             </div>
           </div>
+
+          <!-- Card 6: Risk Analyst -->
+          <div class="glass-panel p-6 rounded-xl flex flex-col gap-6 relative border border-white/5">
+            <div class="flex justify-between items-start">
+              <div class="flex gap-4">
+                <div class="w-10 h-10 rounded border border-orange-500/50 flex items-center justify-center bg-orange-500/10">
+                  <span class="material-symbols-outlined text-orange-400">crisis_alert</span>
+                </div>
+                <div>
+                  <h3 class="text-body-lg font-bold text-on-surface">Risk Analyst</h3>
+                  <p class="text-[10px] text-on-surface-variant uppercase tracking-widest mt-1">Exposure & Mitigation</p>
+                </div>
+              </div>
+              <div class="flex items-center gap-2 bg-white/5 px-2 py-1 rounded text-[10px] text-on-surface-variant uppercase tracking-wider border border-white/10">
+                <div class="w-1.5 h-1.5 rounded-full bg-tertiary"></div> SYNCHRONIZED
+              </div>
+            </div>
+            <div class="flex flex-col gap-4">
+              <div>
+                <div class="flex justify-between text-[11px] text-on-surface-variant uppercase mb-1">
+                  <span>Conservative</span> <span class="text-primary font-bold">{{agentConfigs['Risk Analyst'].slider1}}%</span> <span>High Tolerance</span>
+                </div>
+                <p class="text-[10px] text-on-surface-variant/50 mb-2">Higher % = agent tolerates elevated risk exposure and rates projects more leniently; lower % = flags risks aggressively and escalates minor concerns.</p>
+                <input type="range" [(ngModel)]="agentConfigs['Risk Analyst'].slider1" min="0" max="100" class="w-full accent-primary">
+              </div>
+              <div>
+                <div class="flex justify-between text-[11px] text-on-surface-variant uppercase mb-1">
+                  <span>Full Plan Required</span> <span class="text-primary font-bold">{{agentConfigs['Risk Analyst'].slider2}}%</span> <span>Flag & Proceed</span>
+                </div>
+                <p class="text-[10px] text-on-surface-variant/50 mb-2">Higher % = agent flags risks but still supports proceeding; lower % = requires a complete mitigation plan before recommending approval.</p>
+                <input type="range" [(ngModel)]="agentConfigs['Risk Analyst'].slider2" min="0" max="100" class="w-full accent-primary">
+              </div>
+            </div>
+            <div class="flex flex-col gap-2">
+              <div class="flex justify-between items-center">
+                <label class="text-[11px] text-on-surface-variant uppercase tracking-widest">Custom Directives</label>
+                <span class="text-[10px]" [class.text-error]="(agentConfigs['Risk Analyst'].customDirectives?.length || 0) >= 450" [class.text-on-surface-variant]="(agentConfigs['Risk Analyst'].customDirectives?.length || 0) < 450">{{agentConfigs['Risk Analyst'].customDirectives?.length || 0}}/500</span>
+              </div>
+              <textarea [(ngModel)]="agentConfigs['Risk Analyst'].customDirectives" maxlength="500" class="w-full h-24 bg-surface-container/50 border border-white/10 rounded-lg p-3 text-sm text-on-surface focus:outline-none focus:border-primary transition-colors resize-none" placeholder="e.g., Treat any third-party API dependency as a HIGH risk regardless of SLA..."></textarea>
+            </div>
+          </div>
+
+          <!-- Card 7: Operations Manager -->
+          <div class="glass-panel p-6 rounded-xl flex flex-col gap-6 relative border border-white/5">
+            <div class="flex justify-between items-start">
+              <div class="flex gap-4">
+                <div class="w-10 h-10 rounded border border-cyan-500/50 flex items-center justify-center bg-cyan-500/10">
+                  <span class="material-symbols-outlined text-cyan-400">manage_accounts</span>
+                </div>
+                <div>
+                  <h3 class="text-body-lg font-bold text-on-surface">Operations Manager</h3>
+                  <p class="text-[10px] text-on-surface-variant uppercase tracking-widest mt-1">Execution & Delivery</p>
+                </div>
+              </div>
+              <div class="flex items-center gap-2 bg-white/5 px-2 py-1 rounded text-[10px] text-on-surface-variant uppercase tracking-wider border border-white/10">
+                <div class="w-1.5 h-1.5 rounded-full bg-tertiary"></div> SYNCHRONIZED
+              </div>
+            </div>
+            <div class="flex flex-col gap-4">
+              <div>
+                <div class="flex justify-between text-[11px] text-on-surface-variant uppercase mb-1">
+                  <span>Strict Governance</span> <span class="text-primary font-bold">{{agentConfigs['Operations Manager'].slider1}}%</span> <span>Lean / Agile</span>
+                </div>
+                <p class="text-[10px] text-on-surface-variant/50 mb-2">Higher % = agent recommends lightweight agile delivery with minimal process overhead; lower % = enforces full governance gates and formal approvals at each stage.</p>
+                <input type="range" [(ngModel)]="agentConfigs['Operations Manager'].slider1" min="0" max="100" class="w-full accent-primary">
+              </div>
+              <div>
+                <div class="flex justify-between text-[11px] text-on-surface-variant uppercase mb-1">
+                  <span>Slow Ramp-Up</span> <span class="text-primary font-bold">{{agentConfigs['Operations Manager'].slider2}}%</span> <span>Fast Onboarding</span>
+                </div>
+                <p class="text-[10px] text-on-surface-variant/50 mb-2">Higher % = agent pushes for fast team mobilisation and early sprint start; lower % = advocates thorough onboarding even if it delays kickoff.</p>
+                <input type="range" [(ngModel)]="agentConfigs['Operations Manager'].slider2" min="0" max="100" class="w-full accent-primary">
+              </div>
+            </div>
+            <div class="flex flex-col gap-2">
+              <div class="flex justify-between items-center">
+                <label class="text-[11px] text-on-surface-variant uppercase tracking-widest">Custom Directives</label>
+                <span class="text-[10px]" [class.text-error]="(agentConfigs['Operations Manager'].customDirectives?.length || 0) >= 450" [class.text-on-surface-variant]="(agentConfigs['Operations Manager'].customDirectives?.length || 0) < 450">{{agentConfigs['Operations Manager'].customDirectives?.length || 0}}/500</span>
+              </div>
+              <textarea [(ngModel)]="agentConfigs['Operations Manager'].customDirectives" maxlength="500" class="w-full h-24 bg-surface-container/50 border border-white/10 rounded-lg p-3 text-sm text-on-surface focus:outline-none focus:border-primary transition-colors resize-none" placeholder="e.g., All projects must have a RAID log established within 48 hours of kickoff..."></textarea>
+            </div>
+          </div>
+
         </div>
 
         <!-- Buttons -->
@@ -881,7 +961,9 @@
           <button (click)="resetAgentConfigs()" class="px-6 py-2 rounded-lg border border-white/10 text-on-surface-variant text-sm font-semibold hover:bg-white/5 transition-colors">
             RESET DEFAULTS
           </button>
-          <button (click)="saveAgentConfigs()" class="px-6 py-2 rounded-lg bg-primary-container text-on-primary-container text-sm font-semibold hover:brightness-110 shadow-[0_0_15px_rgba(255,255,255,0.3)] transition-all">
+          <button (click)="saveAgentConfigs()" 
+                  [disabled]="!isAgentConfigsChanged"
+                  class="px-6 py-2 rounded-lg bg-primary-container text-on-primary-container text-sm font-semibold hover:brightness-110 shadow-[0_0_15px_rgba(255,255,255,0.3)] transition-all disabled:opacity-50 disabled:cursor-not-allowed">
             DEPLOY CONFIGURATION
           </button>
         </div>
