@@ -1,0 +1,457 @@
+<div class="h-screen overflow-y-auto overflow-x-hidden flex flex-col items-center px-4 py-10 relative bg-background bg-mesh">
+  <!-- Decorative orbs -->
+  <div class="absolute w-[500px] h-[500px] rounded-full bg-primary/8 blur-[140px] top-0 left-0 pointer-events-none"></div>
+  <div class="absolute w-[400px] h-[400px] rounded-full bg-secondary/10 blur-[120px] bottom-0 right-0 pointer-events-none"></div>
+
+  <div class="w-full max-w-[640px] relative z-10 my-auto">
+
+    <!-- Header -->
+    <div class="flex flex-col items-center mb-8">
+      <div class="w-14 h-14 rounded-2xl bg-surface-container border border-white/10 flex items-center justify-center mb-4 shadow-inner">
+        <span class="material-symbols-outlined text-2xl text-primary neon-text-primary">domain</span>
+      </div>
+      <h1 class="text-headline-lg text-on-surface font-bold tracking-tight text-center">
+        Set up your <span class="text-primary neon-text-primary">Organisation</span>
+      </h1>
+      <p class="text-caption text-on-surface-variant/70 text-center mt-1 max-w-[380px]">
+        Configure your company profile so the AI boardroom can evaluate bids with full financial context.
+      </p>
+    </div>
+
+    <!-- Step progress -->
+    <div class="flex items-center justify-center gap-0 mb-8">
+      <ng-container *ngFor="let step of [1, 2, 3]; let last = last">
+        <div class="flex items-center gap-0">
+          <!-- Step dot -->
+          <div class="flex flex-col items-center gap-1">
+            <div class="w-8 h-8 rounded-full flex items-center justify-center text-[12px] font-bold transition-all duration-300"
+                 [class.bg-primary]="currentStep >= step"
+                 [class.text-on-primary]="currentStep >= step"
+                 [class.bg-surface-container]="currentStep < step"
+                 [class.text-on-surface-variant]="currentStep < step"
+                 [class.border]="currentStep < step"
+                 [class.border-white]="currentStep < step"
+                 [class.border-opacity-10]="currentStep < step">
+              <span *ngIf="currentStep > step" class="material-symbols-outlined text-[16px]">check</span>
+              <span *ngIf="currentStep <= step">{{ step }}</span>
+            </div>
+            <span class="text-[10px] tracking-wider uppercase whitespace-nowrap"
+                  [class.text-primary]="currentStep === step"
+                  [class.text-on-surface-variant]="currentStep !== step">
+              {{ step === 1 ? 'Company' : step === 2 ? 'Financials' : 'Team' }}
+            </span>
+          </div>
+          <!-- Connector -->
+          <div *ngIf="!last" class="w-16 h-px mx-2 mb-5 transition-all duration-300"
+               [class.bg-primary]="currentStep > step"
+               [class.bg-white]="currentStep <= step"
+               [class.opacity-20]="currentStep <= step"></div>
+        </div>
+      </ng-container>
+    </div>
+
+    <!-- Card -->
+    <div class="glass-panel rounded-3xl border border-white/8 shadow-2xl overflow-hidden">
+
+      <!-- ── Step 1: Company Profile ─────────────────────────────────────── -->
+      <div *ngIf="currentStep === 1" class="p-8 flex flex-col gap-6">
+        <div>
+          <h2 class="text-title-lg font-semibold text-on-surface">Company Profile</h2>
+          <p class="text-caption text-on-surface-variant/70 mt-0.5">Basic details about your organisation.</p>
+        </div>
+
+        <!-- Company name (required) -->
+        <div class="flex flex-col gap-1.5">
+          <label class="text-label-sm text-on-surface-variant uppercase tracking-wider text-[11px]">
+            Company Name <span class="text-error">*</span>
+          </label>
+          <input
+            [(ngModel)]="company.name"
+            placeholder="e.g. Argusoft India Ltd"
+            class="w-full h-11 rounded-xl bg-surface-container border border-white/10 px-4 text-on-surface text-label-md placeholder:text-on-surface-variant/40 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all" />
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <!-- Industry -->
+          <div class="flex flex-col gap-1.5">
+            <label class="text-label-sm text-on-surface-variant uppercase tracking-wider text-[11px]">Industry</label>
+            <select
+              [(ngModel)]="company.industry"
+              class="w-full h-11 rounded-xl bg-surface-container border border-white/10 px-4 text-on-surface text-label-md focus:outline-none focus:border-primary/50 transition-all appearance-none">
+              <option value="">Select industry…</option>
+              <option *ngFor="let opt of industryOptions" [value]="opt">{{ opt }}</option>
+            </select>
+          </div>
+
+          <!-- Company size -->
+          <div class="flex flex-col gap-1.5">
+            <label class="text-label-sm text-on-surface-variant uppercase tracking-wider text-[11px]">Company Size</label>
+            <select
+              [(ngModel)]="company.size_category"
+              class="w-full h-11 rounded-xl bg-surface-container border border-white/10 px-4 text-on-surface text-label-md focus:outline-none focus:border-primary/50 transition-all appearance-none">
+              <option *ngFor="let opt of sizeOptions" [value]="opt.value">{{ opt.label }}</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Registration number -->
+        <div class="flex flex-col gap-1.5">
+          <label class="text-label-sm text-on-surface-variant uppercase tracking-wider text-[11px]">Registration / CIN Number</label>
+          <input
+            [(ngModel)]="company.registration_number"
+            placeholder="e.g. U72200GJ1992PTC018122"
+            class="w-full h-11 rounded-xl bg-surface-container border border-white/10 px-4 text-on-surface text-label-md placeholder:text-on-surface-variant/40 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all" />
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <!-- Website -->
+          <div class="flex flex-col gap-1.5">
+            <label class="text-label-sm text-on-surface-variant uppercase tracking-wider text-[11px]">Website</label>
+            <input
+              [(ngModel)]="company.website"
+              placeholder="https://www.example.com"
+              class="w-full h-11 rounded-xl bg-surface-container border border-white/10 px-4 text-on-surface text-label-md placeholder:text-on-surface-variant/40 focus:outline-none focus:border-primary/50 transition-all" />
+          </div>
+
+          <!-- Address -->
+          <div class="flex flex-col gap-1.5">
+            <label class="text-label-sm text-on-surface-variant uppercase tracking-wider text-[11px]">Headquarters</label>
+            <input
+              [(ngModel)]="company.address"
+              placeholder="City, State, Country"
+              class="w-full h-11 rounded-xl bg-surface-container border border-white/10 px-4 text-on-surface text-label-md placeholder:text-on-surface-variant/40 focus:outline-none focus:border-primary/50 transition-all" />
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Step 2: Financial Snapshot ──────────────────────────────────── -->
+      <div *ngIf="currentStep === 2" class="p-8 flex flex-col gap-6">
+        <div>
+          <h2 class="text-title-lg font-semibold text-on-surface">Financial Snapshot</h2>
+          <p class="text-caption text-on-surface-variant/70 mt-0.5">
+            Used by the Financial Agent and Legal Agent to evaluate bid capacity and contractual exposure.
+          </p>
+        </div>
+
+        <!-- Info banner -->
+        <div class="flex items-start gap-3 bg-primary/5 border border-primary/15 rounded-xl px-4 py-3">
+          <span class="material-symbols-outlined text-primary text-[18px] mt-0.5 shrink-0">info</span>
+          <p class="text-[12px] text-on-surface-variant/80 leading-relaxed">
+            Fields marked <span class="text-error font-semibold">*</span> are required. Agents use these figures to
+            determine whether the company has sufficient liquidity, payroll capacity, and margin headroom
+            to take on a new project without over-committing.
+          </p>
+        </div>
+
+        <!-- Fiscal year -->
+        <div class="flex flex-col gap-1.5">
+          <label class="text-label-sm text-on-surface-variant uppercase tracking-wider text-[11px]">Fiscal Year</label>
+          <input
+            type="number"
+            [(ngModel)]="financials.fiscal_year"
+            min="2000" max="2100"
+            class="w-32 h-11 rounded-xl bg-surface-container border border-white/10 px-4 text-on-surface text-label-md focus:outline-none focus:border-primary/50 transition-all" />
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <!-- Annual Revenue -->
+          <div class="flex flex-col gap-1.5">
+            <label class="text-label-sm text-on-surface-variant uppercase tracking-wider text-[11px]">
+              Annual Revenue <span class="text-error">*</span>
+            </label>
+            <div class="relative">
+              <span class="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant/50 text-sm">₹</span>
+              <input
+                type="number"
+                [(ngModel)]="financials.annual_revenue"
+                placeholder="0"
+                min="0"
+                class="w-full h-11 rounded-xl bg-surface-container border border-white/10 pl-7 pr-4 text-on-surface text-label-md placeholder:text-on-surface-variant/40 focus:outline-none focus:border-primary/50 transition-all" />
+            </div>
+            <span class="text-[10px] text-on-surface-variant/50">Total revenue for the fiscal year (INR)</span>
+          </div>
+
+          <!-- Working Capital -->
+          <div class="flex flex-col gap-1.5">
+            <label class="text-label-sm text-on-surface-variant uppercase tracking-wider text-[11px]">
+              Working Capital <span class="text-error">*</span>
+            </label>
+            <div class="relative">
+              <span class="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant/50 text-sm">₹</span>
+              <input
+                type="number"
+                [(ngModel)]="financials.working_capital"
+                placeholder="0"
+                min="0"
+                class="w-full h-11 rounded-xl bg-surface-container border border-white/10 pl-7 pr-4 text-on-surface text-label-md placeholder:text-on-surface-variant/40 focus:outline-none focus:border-primary/50 transition-all" />
+            </div>
+            <span class="text-[10px] text-on-surface-variant/50">Liquid assets minus short-term liabilities</span>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <!-- Annual Payroll -->
+          <div class="flex flex-col gap-1.5">
+            <label class="text-label-sm text-on-surface-variant uppercase tracking-wider text-[11px]">
+              Annual Payroll Cost <span class="text-error">*</span>
+            </label>
+            <div class="relative">
+              <span class="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant/50 text-sm">₹</span>
+              <input
+                type="number"
+                [(ngModel)]="financials.annual_payroll"
+                placeholder="0"
+                min="0"
+                class="w-full h-11 rounded-xl bg-surface-container border border-white/10 pl-7 pr-4 text-on-surface text-label-md placeholder:text-on-surface-variant/40 focus:outline-none focus:border-primary/50 transition-all" />
+            </div>
+            <span class="text-[10px] text-on-surface-variant/50">Total employee cost including benefits</span>
+          </div>
+
+          <!-- Outstanding Debt -->
+          <div class="flex flex-col gap-1.5">
+            <label class="text-label-sm text-on-surface-variant uppercase tracking-wider text-[11px]">Outstanding Debt</label>
+            <div class="relative">
+              <span class="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant/50 text-sm">₹</span>
+              <input
+                type="number"
+                [(ngModel)]="financials.total_debt"
+                placeholder="0"
+                min="0"
+                class="w-full h-11 rounded-xl bg-surface-container border border-white/10 pl-7 pr-4 text-on-surface text-label-md placeholder:text-on-surface-variant/40 focus:outline-none focus:border-primary/50 transition-all" />
+            </div>
+            <span class="text-[10px] text-on-surface-variant/50">Total loans, bonds, and credit lines outstanding</span>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <!-- Active Project Value -->
+          <div class="flex flex-col gap-1.5">
+            <label class="text-label-sm text-on-surface-variant uppercase tracking-wider text-[11px]">Active Project Value</label>
+            <div class="relative">
+              <span class="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant/50 text-sm">₹</span>
+              <input
+                type="number"
+                [(ngModel)]="financials.active_project_value"
+                placeholder="0"
+                min="0"
+                class="w-full h-11 rounded-xl bg-surface-container border border-white/10 pl-7 pr-4 text-on-surface text-label-md placeholder:text-on-surface-variant/40 focus:outline-none focus:border-primary/50 transition-all" />
+            </div>
+            <span class="text-[10px] text-on-surface-variant/50">Total value of currently contracted projects</span>
+          </div>
+
+          <!-- Max Bid Capacity Override -->
+          <div class="flex flex-col gap-1.5">
+            <label class="text-label-sm text-on-surface-variant uppercase tracking-wider text-[11px]">Max Single-Project Bid Limit</label>
+            <div class="relative">
+              <span class="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant/50 text-sm">₹</span>
+              <input
+                type="number"
+                [(ngModel)]="financials.max_bid_capacity_override"
+                placeholder="Auto (30% of working capital)"
+                min="0"
+                class="w-full h-11 rounded-xl bg-surface-container border border-white/10 pl-7 pr-4 text-on-surface text-label-md placeholder:text-on-surface-variant/40 focus:outline-none focus:border-primary/50 transition-all" />
+            </div>
+            <span class="text-[10px] text-on-surface-variant/50">Leave blank to auto-calculate</span>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <!-- Overhead Rate -->
+          <div class="flex flex-col gap-1.5">
+            <label class="text-label-sm text-on-surface-variant uppercase tracking-wider text-[11px]">
+              Overhead Rate <span class="text-error">*</span>
+            </label>
+            <div class="relative">
+              <input
+                type="number"
+                [(ngModel)]="financials.overhead_rate_percent"
+                placeholder="20"
+                min="0" max="100" step="0.5"
+                class="w-full h-11 rounded-xl bg-surface-container border border-white/10 px-4 pr-8 text-on-surface text-label-md placeholder:text-on-surface-variant/40 focus:outline-none focus:border-primary/50 transition-all" />
+              <span class="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant/50 text-sm">%</span>
+            </div>
+            <span class="text-[10px] text-on-surface-variant/50">Indirect costs as % of direct costs (typically 15–30%)</span>
+          </div>
+
+          <!-- Target Margin -->
+          <div class="flex flex-col gap-1.5">
+            <label class="text-label-sm text-on-surface-variant uppercase tracking-wider text-[11px]">
+              Target Profit Margin <span class="text-error">*</span>
+            </label>
+            <div class="relative">
+              <input
+                type="number"
+                [(ngModel)]="financials.target_profit_margin_percent"
+                placeholder="15"
+                min="0" max="100" step="0.5"
+                class="w-full h-11 rounded-xl bg-surface-container border border-white/10 px-4 pr-8 text-on-surface text-label-md placeholder:text-on-surface-variant/40 focus:outline-none focus:border-primary/50 transition-all" />
+              <span class="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant/50 text-sm">%</span>
+            </div>
+            <span class="text-[10px] text-on-surface-variant/50">Minimum acceptable margin per bid (typically 10–25%)</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Step 3: Employee Import ──────────────────────────────────────── -->
+      <div *ngIf="currentStep === 3" class="p-8 flex flex-col gap-6">
+        <div>
+          <h2 class="text-title-lg font-semibold text-on-surface">Import Your Team</h2>
+          <p class="text-caption text-on-surface-variant/70 mt-0.5">
+            Optional — you can always import employees later from the dashboard.
+          </p>
+        </div>
+
+        <!-- Optional badge -->
+        <div class="flex items-center gap-2 bg-secondary/8 border border-secondary/20 rounded-xl px-4 py-3">
+          <span class="material-symbols-outlined text-secondary text-[18px]">info</span>
+          <p class="text-[12px] text-on-surface-variant/80">
+            Employee data helps the <span class="text-secondary font-semibold">Resource Agent</span> and
+            <span class="text-secondary font-semibold">Technical Agent</span> assess staffing availability and skill coverage for each bid.
+            Skip this step if your roster isn't ready yet.
+          </p>
+        </div>
+
+        <!-- Template download -->
+        <div class="flex items-center justify-between bg-white/3 rounded-xl px-4 py-3 border border-white/5">
+          <div class="flex items-center gap-3">
+            <span class="material-symbols-outlined text-secondary text-[22px]">table_chart</span>
+            <div>
+              <p class="text-label-md text-on-surface leading-tight">Download Template</p>
+              <p class="text-[11px] text-on-surface-variant">employee_import_template.xlsx — fill in and upload below</p>
+            </div>
+          </div>
+          <button
+            (click)="downloadTemplate()"
+            class="flex items-center gap-1.5 py-1.5 px-3 rounded-lg bg-secondary/10 border border-secondary/20 text-secondary text-[12px] font-semibold hover:bg-secondary/20 transition-all">
+            <span class="material-symbols-outlined text-[16px]">download</span>
+            Download
+          </button>
+        </div>
+
+        <!-- Drop zone -->
+        <div
+          class="relative border-2 border-dashed rounded-xl py-10 px-6 flex flex-col items-center gap-2 transition-all duration-200 cursor-pointer select-none"
+          [class.border-primary]="isDragOver"
+          [class.bg-primary/5]="isDragOver"
+          [class.border-white/15]="!isDragOver"
+          (dragover)="onDragOver($event)"
+          (dragleave)="onDragLeave($event)"
+          (drop)="onDrop($event)"
+          (click)="triggerFilePicker()">
+
+          <span class="material-symbols-outlined text-5xl transition-colors"
+                [class.text-primary]="isDragOver"
+                [class.text-on-surface-variant]="!isDragOver && !selectedFile"
+                [class.text-secondary]="!isDragOver && !!selectedFile">
+            {{ selectedFile ? 'description' : 'cloud_upload' }}
+          </span>
+
+          <ng-container *ngIf="!selectedFile">
+            <p class="text-label-md text-on-surface">Drag &amp; drop your file here</p>
+            <p class="text-caption text-on-surface-variant">or click to browse — <span class="font-semibold">.csv</span> and <span class="font-semibold">.xlsx</span> supported · max 5 MB</p>
+          </ng-container>
+
+          <ng-container *ngIf="selectedFile">
+            <p class="text-label-md text-on-surface">{{ selectedFile.name }}</p>
+            <p class="text-caption text-on-surface-variant">{{ fileSizeLabel() }} · click to change</p>
+          </ng-container>
+
+          <input #fileInput type="file" accept=".csv,.xlsx" class="hidden" (change)="onFileInput($event)">
+        </div>
+
+        <!-- Global import error -->
+        <div *ngIf="importGlobalError" class="flex items-center gap-2 bg-error/10 border border-error/20 rounded-lg px-4 py-3">
+          <span class="material-symbols-outlined text-error text-[18px]">error</span>
+          <span class="text-caption text-error">{{ importGlobalError }}</span>
+        </div>
+
+        <!-- Upload progress -->
+        <div *ngIf="uploadState === 'uploading'" class="flex items-center gap-2 justify-center py-2 text-on-surface-variant">
+          <span class="material-symbols-outlined text-primary animate-spin">sync</span>
+          <span class="text-label-md">Processing file…</span>
+        </div>
+
+        <!-- Success banner -->
+        <div *ngIf="uploadState === 'success'" class="flex items-center gap-2 bg-tertiary/10 border border-tertiary/20 rounded-xl px-4 py-3">
+          <span class="material-symbols-outlined text-tertiary text-[22px]">check_circle</span>
+          <span class="text-label-md text-tertiary-fixed">
+            {{ importedCount }} employee{{ importedCount === 1 ? '' : 's' }} imported successfully.
+          </span>
+        </div>
+
+        <!-- Validation error table -->
+        <div *ngIf="uploadState === 'error' && importErrors.length" class="flex flex-col gap-2">
+          <div class="flex items-center gap-1.5">
+            <span class="material-symbols-outlined text-error text-[18px]">report</span>
+            <span class="text-label-md font-semibold text-error">
+              {{ importErrors.length }} validation error{{ importErrors.length === 1 ? '' : 's' }} — fix and re-upload
+            </span>
+          </div>
+          <div class="max-h-[200px] overflow-y-auto rounded-lg border border-error/15 divide-y divide-error/10">
+            <div *ngFor="let err of importErrors"
+                 class="flex gap-2 items-start px-3 py-2 bg-error/4 hover:bg-error/7 transition-colors">
+              <span class="text-[11px] font-bold text-error/70 shrink-0 w-14 pt-px">Row {{ err.row }}</span>
+              <span *ngIf="err.field" class="text-[11px] font-semibold text-on-surface-variant/60 shrink-0 w-32 pt-px truncate" title="{{ err.field }}">{{ err.field }}</span>
+              <span class="text-caption text-on-surface/85 leading-snug">{{ err.message }}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Upload button (shown when file is selected and not yet successful) -->
+        <div *ngIf="selectedFile && uploadState !== 'success'" class="flex justify-end">
+          <button
+            (click)="uploadEmployees()"
+            [disabled]="uploadState === 'uploading'"
+            class="flex items-center gap-2 py-2.5 px-5 bg-secondary text-on-secondary font-semibold text-label-md rounded-lg hover:scale-[1.02] transition-all disabled:opacity-40 disabled:scale-100">
+            <span class="material-symbols-outlined text-[18px]">{{ uploadState === 'uploading' ? 'sync' : 'upload' }}</span>
+            {{ uploadState === 'uploading' ? 'Uploading…' : 'Upload & Import' }}
+          </button>
+        </div>
+      </div>
+
+      <!-- ── Error banner ────────────────────────────────────────────────── -->
+      <div *ngIf="submitError" class="mx-8 mb-0 -mt-2 flex items-center gap-2 bg-error/10 border border-error/20 rounded-lg px-4 py-3">
+        <span class="material-symbols-outlined text-error text-[18px]">error</span>
+        <span class="text-caption text-error">{{ submitError }}</span>
+      </div>
+
+      <!-- ── Navigation footer ───────────────────────────────────────────── -->
+      <div class="flex items-center justify-between px-8 py-5 border-t border-white/[0.07] bg-surface-container/20">
+        <!-- Back -->
+        <button
+          *ngIf="currentStep > 1"
+          (click)="prevStep()"
+          [disabled]="savingCompany"
+          class="flex items-center gap-1.5 py-2.5 px-5 bg-white/5 border border-white/10 text-on-surface-variant font-label-md text-label-md rounded-lg hover:text-on-surface transition-colors disabled:opacity-40">
+          <span class="material-symbols-outlined text-[18px]">arrow_back</span>
+          Back
+        </button>
+        <div *ngIf="currentStep === 1"></div>
+
+        <!-- Right side actions -->
+        <div class="flex items-center gap-3">
+          <!-- Next (steps 1 & 2) -->
+          <button
+            *ngIf="currentStep < 3"
+            (click)="nextStep()"
+            [disabled]="!stepValid || savingCompany"
+            class="flex items-center gap-1.5 py-2.5 px-5 bg-primary text-on-primary font-semibold text-label-md rounded-lg hover:scale-[1.02] transition-all disabled:opacity-40 disabled:scale-100">
+            <span *ngIf="savingCompany" class="material-symbols-outlined text-[18px] animate-spin">sync</span>
+            <span *ngIf="!savingCompany">{{ currentStep === 2 ? 'Save & Continue' : 'Next' }}</span>
+            <span *ngIf="!savingCompany" class="material-symbols-outlined text-[18px]">arrow_forward</span>
+          </button>
+
+          <!-- Launch Boardroom (step 3 — company already persisted at this point) -->
+          <button
+            *ngIf="currentStep === 3"
+            (click)="goToDashboard()"
+            class="flex items-center gap-1.5 py-2.5 px-5 bg-primary text-on-primary font-semibold text-label-md rounded-lg hover:scale-[1.02] transition-all">
+            <span class="material-symbols-outlined text-[18px]">rocket_launch</span>
+            Launch Boardroom
+          </button>
+        </div>
+      </div>
+
+    </div><!-- /card -->
+  </div>
+</div>

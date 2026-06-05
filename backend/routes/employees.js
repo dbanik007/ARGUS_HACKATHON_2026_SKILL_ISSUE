@@ -187,6 +187,18 @@ router.post('/import', authenticateJWT, (req, res) => {
       return res.status(422).json({ errors });
     }
 
+    // --- Resolve the caller's company (if they've completed onboarding) ---
+    let callerCompanyId = null;
+    try {
+      const { rows } = await pool.query(
+        'SELECT company_id FROM company_users WHERE user_id = $1 LIMIT 1',
+        [req.user.id]
+      );
+      if (rows.length > 0) callerCompanyId = rows[0].company_id;
+    } catch {
+      // company_users table may not yet exist (pre-migration); leave null
+    }
+
     // --- Transactional insert ---
     const client = await pool.connect();
     let insertedCount = 0;
@@ -195,8 +207,8 @@ router.post('/import', authenticateJWT, (req, res) => {
 
       for (const r of parsed) {
         const { rows: [{ id: empId }] } = await client.query(
-          'INSERT INTO employees (name, designation, email, date_of_joining) VALUES ($1,$2,$3,$4) RETURNING id',
-          [r.name, r.designation, r.email, r.date_of_joining]
+          'INSERT INTO employees (name, designation, email, date_of_joining, company_id) VALUES ($1,$2,$3,$4,$5) RETURNING id',
+          [r.name, r.designation, r.email, r.date_of_joining, callerCompanyId]
         );
 
         for (const tech of r.techStack) {

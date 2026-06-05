@@ -24,12 +24,14 @@ const authRoutes = require('./routes/auth').router;
 const evaluationRoutes = require('./routes/evaluation');
 const employeeRoutes = require('./routes/employees');
 const agentRoutes = require('./routes/agents');
+const onboardingRoutes = require('./routes/onboarding');
 
 // Register routes
 app.use('/api/auth', authRoutes);
 app.use('/api/evaluation', evaluationRoutes);
 app.use('/api/employees', employeeRoutes);
 app.use('/api/agents', agentRoutes);
+app.use('/api/onboarding', onboardingRoutes);
 
 // Health check endpoint
 app.get('/health', (req, res) => {
