@@ -144,6 +144,11 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
   verdictCollapsed: boolean = true;
   agentFlags: { [agent: string]: string } = {};
 
+  // Agent Verdict Reason Overlay State
+  selectedStanceAgent: string | null = null;
+  selectedStanceStatus: string | null = null;
+  selectedStanceReasons: string[] = [];
+
   // Historical sessions
   historyList: EvaluationSession[] = [];
 
@@ -452,6 +457,85 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
 
       return { agent, status };
     });
+  }
+
+  toggleAgentDropdown(agent: string, status: string): void {
+    if (this.selectedStanceAgent === agent) {
+      this.selectedStanceAgent = null;
+      this.selectedStanceStatus = null;
+      this.selectedStanceReasons = [];
+    } else {
+      this.selectedStanceAgent = agent;
+      this.selectedStanceStatus = status;
+      this.selectedStanceReasons = this.extractStanceReasons(agent, status);
+    }
+  }
+
+  extractStanceReasons(agent: string, status: string): string[] {
+    const agentMsgs = this.debateMessages.filter(m => m.sender === agent);
+    if (agentMsgs.length === 0) {
+      return [`No message received yet from ${agent}.`];
+    }
+    
+    const latestMsg = agentMsgs[agentMsgs.length - 1].message_text;
+    const points: string[] = [];
+    
+    // Split by newlines, bullet point markers (*, -, •), or sentence boundaries
+    const lines = latestMsg.split(/\n+/);
+    for (let line of lines) {
+      line = line.trim();
+      line = line.replace(/^[-*•\d\.\s]+/g, '').trim();
+      if (!line) continue;
+      
+      const lower = line.toLowerCase();
+      if (lower.startsWith('hello') || 
+          lower.startsWith('dear') || 
+          lower.includes('deliberation is complete') ||
+          lower.includes('review is complete') ||
+          lower.includes('assessment is complete') ||
+          lower.includes('here is my') ||
+          lower.includes('i recommend a go') ||
+          lower.includes('strongly advocate for') ||
+          lower.includes('boardroom debate') ||
+          lower.includes('round ') ||
+          lower.includes('deliberating...')) {
+        continue;
+      }
+      
+      if (line.includes('. ') && line.length > 120) {
+        const sentences = line.split(/(?<=[.!?])\s+/);
+        for (let s of sentences) {
+          s = s.trim();
+          if (s.length > 10) {
+            points.push(s);
+          }
+        }
+      } else {
+        if (line.length > 10) {
+          points.push(line);
+        }
+      }
+    }
+    
+    if (points.length === 0) {
+      const sentences = latestMsg.split(/(?<=[.!?])\s+/);
+      for (let s of sentences) {
+        s = s.trim();
+        const lower = s.toLowerCase();
+        if (s.length > 15 && 
+            !lower.includes('complete') && 
+            !lower.includes('advocate') && 
+            !lower.includes('hello')) {
+          points.push(s);
+        }
+      }
+    }
+    
+    if (points.length === 0) {
+      return [latestMsg];
+    }
+    
+    return points.slice(0, 6);
   }
 
   getAgentColorClass(sender: string): string {
