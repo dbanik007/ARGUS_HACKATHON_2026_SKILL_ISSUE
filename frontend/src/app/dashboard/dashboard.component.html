@@ -1142,7 +1142,7 @@
               </tr>
             </thead>
             <tbody class="divide-y divide-white/5 font-body-md text-body-md text-on-surface">
-              <tr *ngFor="let emp of employeesList" class="hover:bg-white/[0.02] transition-colors">
+              <tr *ngFor="let emp of paginatedEmployees" class="hover:bg-white/[0.02] transition-colors">
                 <!-- Employee Info -->
                 <td class="p-4">
                   <div class="flex flex-col">
@@ -1207,6 +1207,42 @@
               </tr>
             </tbody>
           </table>
+        </div>
+
+        <!-- Pagination Controls -->
+        <div class="flex flex-col sm:flex-row justify-between items-center gap-md pt-md border-t border-white/10 mt-md font-body-md text-sm text-on-surface-variant">
+          <!-- Page Size Modulator -->
+          <div class="flex items-center gap-xs">
+            <span>Show</span>
+            <select [(ngModel)]="pageSize" (change)="onPageSizeChange()" class="glass-input rounded px-2 py-1 bg-surface-container-high border-white/10 font-semibold focus:outline-none">
+              <option *ngFor="let option of pageSizeOptions" [ngValue]="option">{{ option }}</option>
+            </select>
+            <span>entries</span>
+          </div>
+
+          <!-- Page Navigation -->
+          <div class="flex items-center gap-sm">
+            <span class="text-xs">
+              Showing {{ showingFrom }} to {{ showingTo }} of {{ employeesList.length }} entries
+            </span>
+            <div class="flex items-center border border-white/10 rounded-lg overflow-hidden bg-white/5">
+              <button 
+                (click)="prevPage()" 
+                [disabled]="currentPage === 1" 
+                class="p-2 hover:bg-white/10 transition-colors disabled:opacity-30 disabled:hover:bg-transparent flex items-center justify-center">
+                <span class="material-symbols-outlined text-[18px]">chevron_left</span>
+              </button>
+              <div class="px-3 py-1 border-x border-white/10 bg-white/[0.03] font-semibold text-on-surface">
+                {{ currentPage }} / {{ totalPages }}
+              </div>
+              <button 
+                (click)="nextPage()" 
+                [disabled]="currentPage === totalPages" 
+                class="p-2 hover:bg-white/10 transition-colors disabled:opacity-30 disabled:hover:bg-transparent flex items-center justify-center">
+                <span class="material-symbols-outlined text-[18px]">chevron_right</span>
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 

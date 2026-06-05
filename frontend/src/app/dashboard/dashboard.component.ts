@@ -188,6 +188,9 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
   };
 
   employeesList: any[] = [];
+  currentPage: number = 1;
+  pageSize: number = 10;
+  readonly pageSizeOptions: number[] = [10, 25, 50, 100];
   savingCompanyDetails: boolean = false;
 
   readonly industryOptions = [
@@ -334,11 +337,51 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
     this.http.get<any[]>(`${this.backendUrl}/api/employees`, { headers }).subscribe({
       next: (data: any[]) => {
         this.employeesList = data;
+        this.currentPage = 1;
       },
       error: (err: any) => {
         console.error('Failed to load employees:', err);
       },
     });
+  }
+
+  get paginatedEmployees(): any[] {
+    const startIndex = (this.currentPage - 1) * this.pageSize;
+    return this.employeesList.slice(startIndex, startIndex + this.pageSize);
+  }
+
+  get totalPages(): number {
+    return Math.ceil(this.employeesList.length / this.pageSize) || 1;
+  }
+
+  get showingFrom(): number {
+    return this.employeesList.length === 0 ? 0 : (this.currentPage - 1) * this.pageSize + 1;
+  }
+
+  get showingTo(): number {
+    return Math.min(this.currentPage * this.pageSize, this.employeesList.length);
+  }
+
+  goToPage(page: number): void {
+    if (page >= 1 && page <= this.totalPages) {
+      this.currentPage = page;
+    }
+  }
+
+  nextPage(): void {
+    if (this.currentPage < this.totalPages) {
+      this.currentPage++;
+    }
+  }
+
+  prevPage(): void {
+    if (this.currentPage > 1) {
+      this.currentPage--;
+    }
+  }
+
+  onPageSizeChange(): void {
+    this.currentPage = 1;
   }
 
   loadAgentConfigs(): void {
