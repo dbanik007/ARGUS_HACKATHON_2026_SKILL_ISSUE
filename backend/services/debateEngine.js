@@ -222,7 +222,7 @@ Explicitly flag compliance gaps that could block or delay the project. Respond i
 
   'Financial': `You are the CFO (Chief Financial Officer) in a corporate boardroom tender evaluation.
 Evaluate budget viability, profit margins, and financial risk, and act as the commercial proposer of the bid. Find ways to make the project viable (e.g., proposing creative commercial models, revised budgets, or phased terms to secure a GO).
-Standard dev cost: $12,000–15,000/dev/month. If budget is tight, propose how to adjust scope or pricing to achieve a positive margin. Respond in 2-4 concise sentences.`,
+Standard dev cost: ₹12,000–15,000/dev/month. If budget is tight, propose how to adjust scope or pricing to achieve a positive margin. Respond in 2-4 concise sentences.`,
 
   'Board of Directors': `You are the Chairman of the Board of Directors delivering the FINAL binding verdict.
 Review every agent's position and issue a clear, authoritative decision.
@@ -337,7 +337,7 @@ const buildFallback = (agentName, session, roster, employees, debateHistory, age
           ? `"${project}" operates in a HIPAA-regulated environment — compliance here is absolute and non-negotiable. A signed Business Associate Agreement (BAA) and full certification audit of all assigned developers are mandatory before any data access. ${hipaaDevs.length > 0 ? `We have ${hipaaDevs.length} certified developers available, but I will require formal documentation before approving.` : `Currently no available developers are HIPAA-certified — this is a hard blocker. We cannot proceed until this is resolved.`}`
           : `"${project}" operates in a HIPAA-regulated environment — this is non-negotiable. All developers assigned must hold active HIPAA certification, and we require a signed Business Associate Agreement (BAA) from ${client} prior to any data access. ${hipaaDevs.length > 0 ? `We have ${hipaaDevs.length} certified developers available (${hipaaDevs.map(d => d.name).join(', ')}), so compliance is achievable, but contractual protections must be in place before go-live.` : `Currently, none of our available bench developers are HIPAA-certified — this is a blocking compliance risk that must be resolved.`}`
         : isFinance
-        ? `"${project}" triggers PCI-DSS Level 1 and SOC 2 Type II obligations as a Financial Services engagement. All infrastructure must be certified and all code subject to independent security audits before production deployment. I recommend building compliance costs (~$15,000) into the contract and including a liability cap clause. Legal can approve subject to these contractual conditions.`
+        ? `"${project}" triggers PCI-DSS Level 1 and SOC 2 Type II obligations as a Financial Services engagement. All infrastructure must be certified and all code subject to independent security audits before production deployment. I recommend building compliance costs (~₹15,000) into the contract and including a liability cap clause. Legal can approve subject to these contractual conditions.`
         : `Legal review of "${project}" is complete. Standard commercial IP terms apply — no elevated regulatory exposure detected. I recommend including a robust change-order process, IP ownership clauses, and a data-processing addendum. No compliance blockers identified. Cleared for GO from a legal standpoint.`,
       2: hasNegativeReputation
         ? `While the Financial Analyst has proposed revised terms, the reputational risk regarding ${client}'s legal dispute ("${negativeResults[0].title}") remains unresolved. Legal will only approve this tender on the condition of a formal indemnity clause protecting us against any third-party liability and a full escrow payment structure. Until then, my stance remains Conditional.`
@@ -347,9 +347,9 @@ const buildFallback = (agentName, session, roster, employees, debateHistory, age
       1: directiveBlocksApproval
         ? `Under current directives, Financial is required to flag "${project}" as unapproved. I cannot endorse this engagement regardless of the margin analysis.`
         : financialViable
-        ? `Financial analysis complete for "${project}". Staffing ${neededDevs} developers at standard bench rates for ${months} months projects a total cost of approximately $${estimatedCost.toLocaleString()}, against the proposed budget of $${budget.toLocaleString()}. This yields a projected gross margin of ${margin}% — within our acceptable range. I support proceeding.`
-        : `The financial case for "${project}" is untenable. Staffing ${neededDevs} developers for ${months} months at standard rates totals $${estimatedCost.toLocaleString()}, which exceeds ${client}'s budget of $${budget.toLocaleString()} by $${(estimatedCost - budget).toLocaleString()}. However, to secure this strategic account, I propose we renegotiate for a revised budget of $${Math.round(budget * 1.22).toLocaleString()} or adopt a phased MVP delivery model to manage our delivery cost.`,
-      2: `I propose a revised budget of $${Math.round(budget * 1.22).toLocaleString()} from ${client} with a phased delivery model: Phase 1 as MVP, Phase 2 for full rollout. This structure recovers our margin to approximately ${Math.round((((budget * 1.22) - estimatedCost) / (budget * 1.22)) * 100)}% and resolves the initial financial risk.`
+        ? `Financial analysis complete for "${project}". Staffing ${neededDevs} developers at standard bench rates for ${months} months projects a total cost of approximately ₹${estimatedCost.toLocaleString()}, against the proposed budget of ₹${budget.toLocaleString()}. This yields a projected gross margin of ${margin}% — within our acceptable range. I support proceeding.`
+        : `The financial case for "${project}" is untenable. Staffing ${neededDevs} developers for ${months} months at standard rates totals ₹${estimatedCost.toLocaleString()}, which exceeds ${client}'s budget of ₹${budget.toLocaleString()} by ₹${(estimatedCost - budget).toLocaleString()}. However, to secure this strategic account, I propose we renegotiate for a revised budget of ₹${Math.round(budget * 1.22).toLocaleString()} or adopt a phased MVP delivery model to manage our delivery cost.`,
+      2: `I propose a revised budget of ₹${Math.round(budget * 1.22).toLocaleString()} from ${client} with a phased delivery model: Phase 1 as MVP, Phase 2 for full rollout. This structure recovers our margin to approximately ${Math.round((((budget * 1.22) - estimatedCost) / (budget * 1.22)) * 100)}% and resolves the initial financial risk.`
     },
     'Risk Analyst': {
       1: directiveBlocksApproval
@@ -527,12 +527,11 @@ const buildContext = (agentName, session, roster, employees, debateHistory, extr
 
   return `TENDER DETAILS:
 - Project: ${session.tender_name}
-- Client: ${session.client_name}
-- Budget: $${budget.toLocaleString()}
+- Budget: ₹${budget.toLocaleString()}
 - Timeline: ${months} months
 - Industry: ${session.industry}
-- Agents: ${roster.join(', ')}
-- Estimated team size needed for this project: ~${estimatedDevs} developers (budget ÷ $14k/dev/month)
+- Roster: ${roster.join(', ')}
+- Estimated team size needed for this project: ~${estimatedDevs} developers (budget ÷ ₹14k/dev/month)
   IMPORTANT: Evaluate whether ${estimatedDevs} suitable developers are available — do NOT suggest staffing the entire bench.
 ${searchSection}
 
@@ -686,16 +685,19 @@ const runDebateAsync = async (session, roster, emitter, pool, missionBriefing = 
       const lower = msg.toLowerCase();
 
       if (agent === 'Legal') {
-        legalFlagged = lower.includes('violation') || lower.includes('non-compliant') ||
-                       lower.includes('cannot approve') || lower.includes('blocking') ||
-                       lower.includes('flagging') || lower.includes('prohibit') ||
+        legalFlagged = lower.includes('violation') || lower.includes('violat') || lower.includes('non-compliant') ||
+                       lower.includes('cannot approve') || lower.includes('cannot proceed') ||
+                       lower.includes('block') || lower.includes('prohibit') ||
                        lower.includes('must') || lower.includes('warning') ||
                        lower.includes('no certified') || lower.includes('baa') ||
                        lower.includes('reject') || lower.includes('no-go') || lower.includes('decline') || lower.includes('do not accept') ||
                        lower.includes('reputation') || lower.includes('lawsuit') ||
                        lower.includes('legal battle') || lower.includes('scam') ||
                        lower.includes('court') || lower.includes('litigation') ||
-                       lower.includes('due diligence');
+                       lower.includes('due diligence') || lower.includes('objection') ||
+                       lower.includes('withhold approval') || lower.includes('not permitted') ||
+                       lower.includes('not allowed') || lower.includes('compliance gap') ||
+                       lower.includes('compliance concern');
         if (legalFlagged) {
           agentFlags['Legal'] = 'flagged';
           criticalBlock = { agent: 'Legal', reason: 'Critical compliance/regulatory barrier flagged by Legal department.' };

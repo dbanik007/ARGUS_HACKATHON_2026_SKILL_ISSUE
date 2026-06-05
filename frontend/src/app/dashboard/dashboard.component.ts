@@ -1172,10 +1172,10 @@ export class DashboardComponent implements OnInit, AfterViewChecked {
     md += `## Project Details\n`;
     md += `- **Client Name:** ${session.client_name}\n`;
     md += `- **Industry Vertical:** ${session.industry}\n`;
-    md += `- **Proposed Budget:** $${Number(session.budget).toLocaleString()}\n`;
+    md += `- **Proposed Budget:** ₹${Number(session.budget).toLocaleString()}\n`;
     md += `- **Timeline:** ${session.timeline_months} Months\n`;
     if (session.final_budget) {
-      md += `- **Target/Final Budget:** $${Number(session.final_budget).toLocaleString()}\n`;
+      md += `- **Target/Final Budget:** ₹${Number(session.final_budget).toLocaleString()}\n`;
     }
     md += `\n`;
 

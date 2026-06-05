@@ -131,10 +131,10 @@
 
         <div class="flex gap-sm">
           <div class="flex flex-col gap-xs flex-1">
-            <label class="font-label-md text-[13px] text-on-surface-variant">Budget ($)</label>
+            <label class="font-label-md text-[13px] text-on-surface-variant">Budget (₹)</label>
             <div class="relative flex flex-col">
               <div class="relative w-full">
-                <span class="absolute left-sm top-1/2 -translate-y-1/2 text-on-surface-variant material-symbols-outlined text-[18px]">attach_money</span>
+                <span class="absolute left-sm top-1/2 -translate-y-1/2 text-on-surface-variant material-symbols-outlined text-[18px]">currency_rupee</span>
                 <input [(ngModel)]="budget" (input)="validateField('budget')" class="glass-input rounded-lg p-sm pl-10 w-full font-body-md text-body-md" [class.border-error]="errors['budget']" type="number" placeholder="2,500,000">
               </div>
               <span *ngIf="errors['budget']" class="text-error text-caption mt-xs animation-fade-in block">{{ errors['budget'] }}</span>
@@ -558,7 +558,7 @@
           <div *ngIf="activeSession && activeSession.final_verdict !== 'EVALUATING'" class="flex flex-col gap-sm shrink-0">
             <div class="flex justify-between items-center border-b border-white/5 pb-2">
               <span class="font-label-md text-caption text-on-surface-variant">Target Cost</span>
-              <span class="font-body-md text-body-md text-on-surface font-semibold">${{ activeSession.final_budget.toLocaleString() }}</span>
+              <span class="font-body-md text-body-md text-on-surface font-semibold">₹{{ activeSession.final_budget.toLocaleString() }}</span>
             </div>
             <div class="flex justify-between items-center border-b border-white/5 pb-2">
               <span class="font-label-md text-caption text-on-surface-variant">Allocated Timeline</span>
@@ -645,8 +645,8 @@
                 </span>
               </td>
               
-              <td class="p-4 text-right font-semibold text-on-surface-variant/80">${{ formatMoney(ses.budget) }}</td>
-              <td class="p-4 text-right font-semibold text-primary">${{ formatMoney(ses.final_budget) }}</td>
+              <td class="p-4 text-right font-semibold text-on-surface-variant/80">₹{{ formatMoney(ses.budget) }}</td>
+              <td class="p-4 text-right font-semibold text-primary">₹{{ formatMoney(ses.final_budget) }}</td>
               
               <td class="p-4 text-center">
                 <span
