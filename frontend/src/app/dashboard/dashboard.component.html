@@ -14,15 +14,10 @@
   
   <!-- Navigation Tabs -->
   <div class="flex gap-md items-center">
-    <button 
-      (click)="activeTab = 'console'" 
+    <button
+      (click)="activeTab = 'console'"
       [class]="activeTab === 'console' ? 'font-label-md text-label-md text-primary border-b-2 border-primary pb-1' : 'font-label-md text-label-md text-on-surface-variant hover:text-primary-container transition-colors'">
       Executive Console
-    </button>
-    <button 
-      (click)="activeTab = 'history'; loadHistory()" 
-      [class]="activeTab === 'history' ? 'font-label-md text-label-md text-primary border-b-2 border-primary pb-1' : 'font-label-md text-label-md text-on-surface-variant hover:text-primary-container transition-colors'">
-      Evaluation History
     </button>
   </div>
 
@@ -85,7 +80,7 @@
         <span [class.hidden]="isSidebarCollapsed" class="text-sm font-medium whitespace-nowrap">Live Evaluation</span>
       </button>
       
-      <button class="w-full flex items-center gap-3 p-3 rounded-lg text-on-surface-variant hover:bg-white/5 hover:text-on-surface transition-colors">
+      <button (click)="activeTab = 'history'; loadHistory()" class="w-full flex items-center gap-3 p-3 rounded-lg text-on-surface-variant hover:bg-white/5 hover:text-on-surface transition-colors" [class.bg-white_5]="activeTab === 'history'" [class.border-l-2]="activeTab === 'history'" [class.border-tertiary]="activeTab === 'history'">
         <span class="material-symbols-outlined">folder_open</span>
         <span [class.hidden]="isSidebarCollapsed" class="text-sm font-medium whitespace-nowrap">Tender Library</span>
       </button>
