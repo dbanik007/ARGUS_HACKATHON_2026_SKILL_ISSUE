@@ -57,6 +57,64 @@
 <!-- Main Workspace Panel -->
 <main class="flex-1 mt-xl h-[calc(100vh-80px)] flex bg-dashboard-workspace">
   
+  <!-- Extreme Left Sidebar -->
+  <aside class="h-full border-r border-white/10 flex flex-col bg-surface-container-low shrink-0 transition-all duration-300" [ngClass]="isSidebarCollapsed ? 'w-[80px]' : 'w-[240px]'">
+    <!-- Project Header -->
+    <div class="p-4 border-b border-white/10 flex items-center gap-3">
+      <div class="w-10 h-10 rounded bg-white/5 border border-white/10 flex items-center justify-center shrink-0">
+        <span class="material-symbols-outlined text-tertiary">memory</span>
+      </div>
+      <div class="flex flex-col overflow-hidden" [class.hidden]="isSidebarCollapsed">
+        <span class="font-semibold text-on-surface truncate">Project Alpha</span>
+        <span class="text-[10px] text-tertiary uppercase tracking-wider truncate">Multi-Agent Active</span>
+      </div>
+    </div>
+
+    <!-- New Eval Button -->
+    <div class="p-4 border-b border-white/10">
+      <button class="w-full py-2 flex items-center justify-center gap-2 border border-tertiary/30 bg-tertiary/10 text-tertiary rounded hover:bg-tertiary/20 transition-colors">
+        <span class="material-symbols-outlined text-[18px]">add</span>
+        <span [class.hidden]="isSidebarCollapsed" class="text-sm font-semibold whitespace-nowrap">New Evaluation</span>
+      </button>
+    </div>
+
+    <!-- Navigation Menu -->
+    <div class="flex-1 overflow-y-auto py-4 flex flex-col gap-1 px-2">
+      <button (click)="activeTab = 'console'" class="w-full flex items-center gap-3 p-3 rounded-lg text-on-surface hover:bg-white/10 transition-colors" [class.bg-white_5]="activeTab === 'console'" [class.border-l-2]="activeTab === 'console'" [class.border-tertiary]="activeTab === 'console'">
+        <span class="material-symbols-outlined text-tertiary">analytics</span>
+        <span [class.hidden]="isSidebarCollapsed" class="text-sm font-medium whitespace-nowrap">Live Evaluation</span>
+      </button>
+      
+      <button class="w-full flex items-center gap-3 p-3 rounded-lg text-on-surface-variant hover:bg-white/5 hover:text-on-surface transition-colors">
+        <span class="material-symbols-outlined">folder_open</span>
+        <span [class.hidden]="isSidebarCollapsed" class="text-sm font-medium whitespace-nowrap">Tender Library</span>
+      </button>
+
+      <button (click)="activeTab = 'training'; loadAgentConfigs()" class="w-full flex items-center gap-3 p-3 rounded-lg text-on-surface-variant hover:bg-white/5 hover:text-on-surface transition-colors" [class.bg-white_5]="activeTab === 'training'" [class.border-l-2]="activeTab === 'training'" [class.border-tertiary]="activeTab === 'training'">
+        <span class="material-symbols-outlined">psychology</span>
+        <span [class.hidden]="isSidebarCollapsed" class="text-sm font-medium whitespace-nowrap">Agent Training</span>
+      </button>
+
+      <button class="w-full flex items-center gap-3 p-3 rounded-lg text-on-surface-variant hover:bg-white/5 hover:text-on-surface transition-colors">
+        <span class="material-symbols-outlined">grid_view</span>
+        <span [class.hidden]="isSidebarCollapsed" class="text-sm font-medium whitespace-nowrap">Risk Matrix</span>
+      </button>
+      
+      <button class="w-full flex items-center gap-3 p-3 rounded-lg text-on-surface-variant hover:bg-white/5 hover:text-on-surface transition-colors mt-auto">
+        <span class="material-symbols-outlined">settings</span>
+        <span [class.hidden]="isSidebarCollapsed" class="text-sm font-medium whitespace-nowrap">Settings</span>
+      </button>
+    </div>
+
+    <!-- Collapse Toggle -->
+    <div class="p-4 border-t border-white/10 flex justify-end">
+      <button (click)="isSidebarCollapsed = !isSidebarCollapsed" class="p-2 rounded hover:bg-white/5 text-on-surface-variant flex items-center justify-center transition-colors">
+        <span class="material-symbols-outlined transition-transform duration-300" [class.rotate-180]="isSidebarCollapsed">keyboard_double_arrow_left</span>
+      </button>
+    </div>
+  </aside>
+
+  
   <!-- CONSOLE TAB VIEW -->
   <ng-container *ngIf="activeTab === 'console'">
     <!-- SIDEBAR: Setup Parameters (Left Panel) -->
@@ -545,6 +603,228 @@
         </table>
       </div>
     </section>
+  </ng-container>
+
+  <!-- AGENT TRAINING TAB VIEW -->
+  <ng-container *ngIf="activeTab === 'training' && agentConfigs">
+    <div class="flex-1 h-full flex flex-col bg-surface-container-lowest overflow-y-auto">
+      <div class="p-8 max-w-7xl mx-auto w-full">
+        <!-- Header -->
+        <div class="mb-8">
+          <h1 class="text-headline-lg font-semibold text-on-surface mb-2">Agent <span class="text-tertiary-fixed font-bold">Calibration</span> Matrix</h1>
+          <p class="text-body-lg text-on-surface-variant max-w-3xl">Configure the psychological parameters and operational directives for the neural sub-agents involved in the evaluation lifecycle. Changes propagate to the active session immediately.</p>
+        </div>
+
+        <!-- Grid -->
+        <div class="grid grid-cols-2 gap-6 mb-6">
+          
+          <!-- Card 1: Account Executive -->
+          <div class="glass-panel p-6 rounded-xl flex flex-col gap-6 relative border border-white/5">
+            <div class="flex justify-between items-start">
+              <div class="flex gap-4">
+                <div class="w-10 h-10 rounded border border-indigo-500/50 flex items-center justify-center bg-indigo-500/10">
+                  <span class="material-symbols-outlined text-indigo-400">person</span>
+                </div>
+                <div>
+                  <h3 class="text-body-lg font-bold text-on-surface">Account Executive</h3>
+                  <p class="text-[10px] text-on-surface-variant uppercase tracking-widest mt-1">Client Relations & Tone</p>
+                </div>
+              </div>
+              <div class="flex items-center gap-2 bg-white/5 px-2 py-1 rounded text-[10px] text-on-surface-variant uppercase tracking-wider border border-white/10">
+                <div class="w-1.5 h-1.5 rounded-full bg-tertiary"></div> SYNCHRONIZED
+              </div>
+            </div>
+
+            <!-- Sliders -->
+            <div class="flex flex-col gap-4">
+              <div>
+                <div class="flex justify-between text-[11px] text-on-surface-variant uppercase mb-2">
+                  <span>Caution</span> <span class="text-primary font-bold">{{agentConfigs['Account Executive'].slider1}}%</span> <span>Aggressiveness</span>
+                </div>
+                <input type="range" [(ngModel)]="agentConfigs['Account Executive'].slider1" min="0" max="100" class="w-full accent-primary">
+              </div>
+              <div>
+                <div class="flex justify-between text-[11px] text-on-surface-variant uppercase mb-2">
+                  <span>Low Risk</span> <span class="text-primary font-bold">{{agentConfigs['Account Executive'].slider2}}%</span> <span>High Tolerance</span>
+                </div>
+                <input type="range" [(ngModel)]="agentConfigs['Account Executive'].slider2" min="0" max="100" class="w-full accent-primary">
+              </div>
+            </div>
+
+            <!-- Textarea -->
+            <div class="flex flex-col gap-2">
+              <label class="text-[11px] text-on-surface-variant uppercase tracking-widest">Custom Directives</label>
+              <textarea [(ngModel)]="agentConfigs['Account Executive'].customDirectives" class="w-full h-24 bg-surface-container/50 border border-white/10 rounded-lg p-3 text-sm text-on-surface focus:outline-none focus:border-primary transition-colors resize-none" placeholder="e.g., Prioritize long-term relationship building over immediate marginal gains..."></textarea>
+            </div>
+          </div>
+
+          <!-- Card 2: Legal & Compliance -->
+          <div class="glass-panel p-6 rounded-xl flex flex-col gap-6 relative border border-white/5">
+            <div class="flex justify-between items-start">
+              <div class="flex gap-4">
+                <div class="w-10 h-10 rounded border border-rose-500/50 flex items-center justify-center bg-rose-500/10">
+                  <span class="material-symbols-outlined text-rose-400">gavel</span>
+                </div>
+                <div>
+                  <h3 class="text-body-lg font-bold text-on-surface">Legal & Compliance</h3>
+                  <p class="text-[10px] text-on-surface-variant uppercase tracking-widest mt-1">Regulatory Boundaries</p>
+                </div>
+              </div>
+              <div class="flex items-center gap-2 bg-white/5 px-2 py-1 rounded text-[10px] text-on-surface-variant uppercase tracking-wider border border-white/10">
+                <div class="w-1.5 h-1.5 rounded-full bg-tertiary"></div> SYNCHRONIZED
+              </div>
+            </div>
+
+            <div class="flex flex-col gap-4">
+              <div>
+                <div class="flex justify-between text-[11px] text-on-surface-variant uppercase mb-2">
+                  <span>Strict Adherence</span> <span class="text-primary font-bold">{{agentConfigs['Legal'].slider1}}%</span> <span>Interpretative</span>
+                </div>
+                <input type="range" [(ngModel)]="agentConfigs['Legal'].slider1" min="0" max="100" class="w-full accent-primary">
+              </div>
+              <div>
+                <div class="flex justify-between text-[11px] text-on-surface-variant uppercase mb-2">
+                  <span>Zero Tolerance</span> <span class="text-primary font-bold">{{agentConfigs['Legal'].slider2}}%</span> <span>Edge Cases</span>
+                </div>
+                <input type="range" [(ngModel)]="agentConfigs['Legal'].slider2" min="0" max="100" class="w-full accent-primary">
+              </div>
+            </div>
+
+            <div class="flex flex-col gap-2">
+              <label class="text-[11px] text-on-surface-variant uppercase tracking-widest">Custom Directives</label>
+              <textarea [(ngModel)]="agentConfigs['Legal'].customDirectives" class="w-full h-24 bg-surface-container/50 border border-white/10 rounded-lg p-3 text-sm text-on-surface focus:outline-none focus:border-primary transition-colors resize-none" placeholder="Flag any IP clauses that deviate from standard regional templates..."></textarea>
+            </div>
+          </div>
+
+          <!-- Card 3: Resource & Engineering -->
+          <div class="glass-panel p-6 rounded-xl flex flex-col gap-6 relative border border-white/5">
+            <div class="flex justify-between items-start">
+              <div class="flex gap-4">
+                <div class="w-10 h-10 rounded border border-blue-500/50 flex items-center justify-center bg-blue-500/10">
+                  <span class="material-symbols-outlined text-blue-400">engineering</span>
+                </div>
+                <div>
+                  <h3 class="text-body-lg font-bold text-on-surface">Resource & Engineering</h3>
+                  <p class="text-[10px] text-on-surface-variant uppercase tracking-widest mt-1">Technical Feasibility</p>
+                </div>
+              </div>
+              <div class="flex items-center gap-2 bg-white/5 px-2 py-1 rounded text-[10px] text-on-surface-variant uppercase tracking-wider border border-white/10">
+                <div class="w-1.5 h-1.5 rounded-full bg-tertiary"></div> SYNCHRONIZED
+              </div>
+            </div>
+
+            <div class="flex flex-col gap-4">
+              <div>
+                <div class="flex justify-between text-[11px] text-on-surface-variant uppercase mb-2">
+                  <span>Conservative Est.</span> <span class="text-primary font-bold">{{agentConfigs['Resource'].slider1}}%</span> <span>Optimistic Est.</span>
+                </div>
+                <input type="range" [(ngModel)]="agentConfigs['Resource'].slider1" min="0" max="100" class="w-full accent-primary">
+              </div>
+              <div>
+                <div class="flex justify-between text-[11px] text-on-surface-variant uppercase mb-2">
+                  <span>Proven Tech Only</span> <span class="text-primary font-bold">{{agentConfigs['Resource'].slider2}}%</span> <span>Bleeding Edge</span>
+                </div>
+                <input type="range" [(ngModel)]="agentConfigs['Resource'].slider2" min="0" max="100" class="w-full accent-primary">
+              </div>
+            </div>
+
+            <div class="flex flex-col gap-2">
+              <label class="text-[11px] text-on-surface-variant uppercase tracking-widest">Custom Directives</label>
+              <textarea [(ngModel)]="agentConfigs['Resource'].customDirectives" class="w-full h-24 bg-surface-container/50 border border-white/10 rounded-lg p-3 text-sm text-on-surface focus:outline-none focus:border-primary transition-colors resize-none" placeholder="Assume API v3 migration is completed for all resource calculations..."></textarea>
+            </div>
+          </div>
+
+          <!-- Card 4: Financial Analyst -->
+          <div class="glass-panel p-6 rounded-xl flex flex-col gap-6 relative border border-white/5">
+            <div class="flex justify-between items-start">
+              <div class="flex gap-4">
+                <div class="w-10 h-10 rounded border border-amber-500/50 flex items-center justify-center bg-amber-500/10">
+                  <span class="material-symbols-outlined text-amber-400">payments</span>
+                </div>
+                <div>
+                  <h3 class="text-body-lg font-bold text-on-surface">Financial Analyst</h3>
+                  <p class="text-[10px] text-on-surface-variant uppercase tracking-widest mt-1">Margin & Costing</p>
+                </div>
+              </div>
+              <div class="flex items-center gap-2 bg-white/5 px-2 py-1 rounded text-[10px] text-on-surface-variant uppercase tracking-wider border border-white/10">
+                <div class="w-1.5 h-1.5 rounded-full bg-tertiary"></div> SYNCHRONIZED
+              </div>
+            </div>
+
+            <div class="flex flex-col gap-4">
+              <div>
+                <div class="flex justify-between text-[11px] text-on-surface-variant uppercase mb-2">
+                  <span>Margin Protection</span> <span class="text-primary font-bold">{{agentConfigs['Financial'].slider1}}%</span> <span>Aggressive Pricing</span>
+                </div>
+                <input type="range" [(ngModel)]="agentConfigs['Financial'].slider1" min="0" max="100" class="w-full accent-primary">
+              </div>
+              <div>
+                <div class="flex justify-between text-[11px] text-on-surface-variant uppercase mb-2">
+                  <span>Fixed Costs Preference</span> <span class="text-primary font-bold">{{agentConfigs['Financial'].slider2}}%</span> <span>Variable Leverage</span>
+                </div>
+                <input type="range" [(ngModel)]="agentConfigs['Financial'].slider2" min="0" max="100" class="w-full accent-primary">
+              </div>
+            </div>
+
+            <div class="flex flex-col gap-2">
+              <label class="text-[11px] text-on-surface-variant uppercase tracking-widest">Custom Directives</label>
+              <textarea [(ngModel)]="agentConfigs['Financial'].customDirectives" class="w-full h-24 bg-surface-container/50 border border-white/10 rounded-lg p-3 text-sm text-on-surface focus:outline-none focus:border-primary transition-colors resize-none" placeholder="Model for Q3 inflation spike scenario..."></textarea>
+            </div>
+          </div>
+        </div>
+
+        <!-- Full width card: Board of Directors -->
+        <div class="glass-panel p-6 rounded-xl flex flex-col gap-6 relative border border-white/5 mb-8">
+          <div class="flex justify-between items-start">
+            <div class="flex gap-4">
+              <div class="w-10 h-10 rounded border border-emerald-500/50 flex items-center justify-center bg-emerald-500/10">
+                <span class="material-symbols-outlined text-emerald-400">corporate_fare</span>
+              </div>
+              <div>
+                <h3 class="text-body-lg font-bold text-on-surface">Business & Risk Assessment</h3>
+                <p class="text-[10px] text-on-surface-variant uppercase tracking-widest mt-1">Holistic Strategic Evaluation</p>
+              </div>
+            </div>
+            <div class="flex items-center gap-2 bg-white/5 px-2 py-1 rounded text-[10px] text-on-surface-variant uppercase tracking-wider border border-white/10">
+              <div class="w-1.5 h-1.5 rounded-full bg-tertiary"></div> SYNCHRONIZED MASTER
+            </div>
+          </div>
+
+          <div class="flex gap-8">
+            <div class="flex flex-col gap-4 flex-1">
+              <div>
+                <div class="flex justify-between text-[11px] text-on-surface-variant uppercase mb-2">
+                  <span>Defensive Strategy</span> <span class="text-primary font-bold">{{agentConfigs['Board of Directors'].slider1}}%</span> <span>Market Capture</span>
+                </div>
+                <input type="range" [(ngModel)]="agentConfigs['Board of Directors'].slider1" min="0" max="100" class="w-full accent-primary">
+              </div>
+              <div>
+                <div class="flex justify-between text-[11px] text-on-surface-variant uppercase mb-2">
+                  <span>Minimize Exposure</span> <span class="text-primary font-bold">{{agentConfigs['Board of Directors'].slider2}}%</span> <span>High Beta</span>
+                </div>
+                <input type="range" [(ngModel)]="agentConfigs['Board of Directors'].slider2" min="0" max="100" class="w-full accent-primary">
+              </div>
+            </div>
+
+            <div class="flex flex-col gap-2 flex-1">
+              <label class="text-[11px] text-on-surface-variant uppercase tracking-widest">Overarching Master Directives</label>
+              <textarea [(ngModel)]="agentConfigs['Board of Directors'].customDirectives" class="w-full h-full bg-surface-container/50 border border-white/10 rounded-lg p-3 text-sm text-on-surface focus:outline-none focus:border-primary transition-colors resize-none" placeholder="This tender is a 'must-win' for Q4..."></textarea>
+            </div>
+          </div>
+        </div>
+
+        <!-- Buttons -->
+        <div class="flex justify-end gap-4 pb-8">
+          <button (click)="resetAgentConfigs()" class="px-6 py-2 rounded-lg border border-white/10 text-on-surface-variant text-sm font-semibold hover:bg-white/5 transition-colors">
+            RESET DEFAULTS
+          </button>
+          <button (click)="saveAgentConfigs()" class="px-6 py-2 rounded-lg bg-primary-container text-on-primary-container text-sm font-semibold hover:brightness-110 shadow-[0_0_15px_rgba(255,255,255,0.3)] transition-all">
+            DEPLOY CONFIGURATION
+          </button>
+        </div>
+
+      </div>
+    </div>
   </ng-container>
 
 </main>

@@ -2,6 +2,7 @@
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const fs = require('fs');
 const path = require('path');
+const { getConfigs } = require('./agentConfigs');
 
 const getEmployees = () => {
   try {
@@ -140,12 +141,33 @@ const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 const callGemini = async (agentName, contextPrompt, session, employees, debateHistory) => {
   const apiKey = process.env.GEMINI_API_KEY;
 
+  const configs = getConfigs();
+  const agentConfig = configs[agentName] || {};
+  let systemInstruction = AGENT_PERSONAS[agentName];
+
+  if (agentConfig.customDirectives) {
+    systemInstruction += `\n\nCUSTOM OPERATIONAL DIRECTIVES:\n${agentConfig.customDirectives}`;
+  }
+
+  // Also pass the slider values dynamically
+  if (agentName === 'Account Executive') {
+    systemInstruction += `\nCaution Level: ${agentConfig.slider1}%. Aggressiveness Level: ${agentConfig.slider2}%.`;
+  } else if (agentName === 'Legal') {
+    systemInstruction += `\nStrict Adherence: ${agentConfig.slider1}%. Zero Tolerance: ${agentConfig.slider2}%.`;
+  } else if (agentName === 'Resource') {
+    systemInstruction += `\nConservative Estimation: ${agentConfig.slider1}%. Proven Tech Preference: ${agentConfig.slider2}%.`;
+  } else if (agentName === 'Financial') {
+    systemInstruction += `\nMargin Protection: ${agentConfig.slider1}%. Fixed Costs Preference: ${agentConfig.slider2}%.`;
+  } else if (agentName === 'Board of Directors') {
+    systemInstruction += `\nDefensive Strategy: ${agentConfig.slider1}%. Minimize Exposure: ${agentConfig.slider2}%.`;
+  }
+
   if (apiKey) {
     try {
       const genAI = new GoogleGenerativeAI(apiKey);
       const model = genAI.getGenerativeModel({
         model: 'gemini-2.5-flash',
-        systemInstruction: AGENT_PERSONAS[agentName]
+        systemInstruction: systemInstruction
       });
       const result = await model.generateContent(contextPrompt);
       return { text: result.response.text().trim(), source: 'gemini' };
@@ -165,7 +187,7 @@ const callGemini = async (agentName, contextPrompt, session, employees, debateHi
             const genAI2 = new GoogleGenerativeAI(apiKey);
             const model2 = genAI2.getGenerativeModel({
               model: 'gemini-2.0-flash',
-              systemInstruction: AGENT_PERSONAS[agentName]
+              systemInstruction: systemInstruction
             });
             const result2 = await model2.generateContent(contextPrompt);
             return { text: result2.response.text().trim(), source: 'gemini' };
